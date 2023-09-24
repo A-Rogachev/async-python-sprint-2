@@ -2,3 +2,6 @@
 .idea/
 __pycache__/
 *.pyc
+.mypy_cache
+venv/
+.python-version

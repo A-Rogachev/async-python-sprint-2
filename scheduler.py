@@ -1,5 +1,6 @@
 class Scheduler:
     def __init__(self, pool_size=10):
+        self.pool_size = pool_size
         pass
 
     def schedule(self, task):
