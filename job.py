@@ -40,28 +40,36 @@ class Job:
         #     for dependency in self.dependencies:
         #         yield from dependency
         self.is_running = True
-        self.execute()
+        for i in self.execute():
+            print(i)
+        job_logger.info('task was executed')
 
     @coroutine
     def execute(self):
         try:
-            return self.task(*self.args, **self.kwargs)
+            gen = self.task(*self.args, **self.kwargs)
+            yield from gen
         except Exception as job_error:
             job_logger.error(f'Job error: {job_error}')
-            if self.tries > 0:
-                self.tries -= 1
-                yield from self.run()
-            else:
-                self.is_running = False
-                return None
+            self.is_running = False
+            # if self.tries > 0:
+            #     self.tries -= 1
+            #     yield from self.run()
+            # else:
+            #     self.is_running = False
+            #     return None
 
     def pause(self):
-        ...
-        # self.is_paused = True
+        """
+        Приостановка задачи.
+        """
+        self.is_paused = True
         # print('Task paused')
 
     def stop(self):
-        ...
-        # self.is_paused = False
-        # self.is_running = False
+        """
+        Остановка задачи.
+        """
+        self.is_paused = False
+        self.is_running = False
         # print('Task stopped')
