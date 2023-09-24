@@ -1,5 +1,19 @@
 class Job:
-    def __init__(self, start_at="", max_working_time=-1, tries=0, dependencies=[]):
+    """
+    Задача, используемая в работе планировщика.
+    """
+
+    def __init__(
+        self,
+        start_at="",
+        max_working_time=-1,
+        tries=0,
+        dependencies=None
+    ) -> None:
+        self.start_at = start_at
+        self.max_working_time = max_working_time
+        self.tries = tries
+        self.dependencies = dependencies or []
         pass
 
     def run(self):
