@@ -147,7 +147,7 @@ class FileSystemWork:
 
 
 if __name__ == '__main__':
-    ...
+    print('main')
     # if not os.path.exists('test_directory'):
     #     os.mkdir('test_directory')
     # print(FileSystemWork.create_object('test_directory/newfile/234', False))
