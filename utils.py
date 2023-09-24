@@ -1,11 +1,14 @@
 import json
 import os
+import shutil
 import urllib.request
 from datetime import datetime
 from http import HTTPStatus
 from http.client import HTTPResponse
 from typing import Any
 
+
+# TODO: заменить return в случае ошибок на raise
 
 def get_world_time(user_timezone: str) -> dict[str, Any] | None:
     """
@@ -19,8 +22,14 @@ def get_world_time(user_timezone: str) -> dict[str, Any] | None:
     try:
         response: HTTPResponse = urllib.request.urlopen(service_url)
         if response.status != HTTPStatus.OK:
-            raise urllib.error.HTTPError
-    except urllib.error.URLError and urllib.error.HTTPError:
+            raise urllib.error.HTTPError(
+                code=response.status,
+                url=service_url,
+                msg=response.reason,
+                hdrs=response.info(),
+                fp=None,
+            )
+    except (urllib.error.URLError, urllib.error.HTTPError):
         return {
             'error': (
                 'can\'t connect to server. '
@@ -79,17 +88,66 @@ class ReadWriteFile:
         return None
 
 
+class FileSystemWork:
+    """
+    Методы для взаимодействия с файловой системой.
+    """
+
+    @staticmethod
+    def remove_object(path: str) -> str | None:
+        """
+        Удаляет файл/директорию с заданным именем.
+        В случае если директория содержит поддиректории и файлы, удаляет и их.
+        """
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+            return None
+        return 'Object "{}" not found.'.format(path)
+
+    @staticmethod
+    def create_object(path: str, is_folder: bool) -> str | None:
+        """
+        Создает директорию с заданным именем.
+        """
+        if os.path.exists(path):
+            return 'Object with this name already exists.'
+        if is_folder:
+            os.makedirs(path)
+        else:
+            try:
+                file = open(path, 'w')
+                file.close()
+            except OSError:
+                return 'Error creating file.'
+        return None
+
+    @staticmethod
+    def rename_obj(path: str, new_name: str) -> str | None:
+        """
+        Переименовывает файл/директорию с заданным именем.
+        """
+        if os.path.exists(path):
+            os.rename(path, new_name)
+            return None
+        return 'Object "{}" not found.'.format(path)
+
+
 if __name__ == '__main__':
-    if not os.path.exists('test_directory'):
-        os.mkdir('test_directory')
+    ...
+    # if not os.path.exists('test_directory'):
+    #     os.mkdir('test_directory')
+    # print(FileSystemWork.create_object('test_directory/newfile/234', False))
 
     # print(get_world_time('europe/samara'))
     # print(get_world_time('europe/moscow'))
     # print(get_world_time('europe/london'))
 
-    ReadWriteFile.rewrite_file('test_directory/test.txt', '123\n456\n789')
-    print(ReadWriteFile.read_from_file('test_directory/test.txt'))
-    ReadWriteFile.rewrite_file('test_directory/test.txt', 'test')
-    print(ReadWriteFile.read_from_file('test_directory/test.txt'))
-    ReadWriteFile.add_to_file('test_directory/test2.txt', 'anothertest')
-    print(ReadWriteFile.read_from_file('test_directory/test2.txt'))
+    # ReadWriteFile.rewrite_file('test_directory/test.txt', '123\n456\n789')
+    # print(ReadWriteFile.read_from_file('test_directory/test.txt'))
+    # ReadWriteFile.rewrite_file('test_directory/test.txt', 'test')
+    # print(ReadWriteFile.read_from_file('test_directory/test.txt'))
+    # ReadWriteFile.add_to_file('test_directory/test2.txt', 'anothertest')
+    # print(ReadWriteFile.read_from_file('test_directory/test2.txt'))
