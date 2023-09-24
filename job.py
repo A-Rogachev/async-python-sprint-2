@@ -10,6 +10,9 @@ class Job:
         tries=0,
         dependencies=None
     ) -> None:
+        """
+        Инициализация объекта задачи, используемой в работе планировщика.
+        """
         self.start_at = start_at
         self.max_working_time = max_working_time
         self.tries = tries
