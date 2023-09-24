@@ -1,3 +1,5 @@
+from .utils import coroutine
+
 class Job:
     """
     Задача, используемая в работе планировщика.

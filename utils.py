@@ -3,12 +3,23 @@ import os
 import shutil
 import urllib.request
 from datetime import datetime
+from functools import wraps
 from http import HTTPStatus
 from http.client import HTTPResponse
-from typing import Any
-
+from typing import Any, Callable
 
 # TODO: заменить return в случае ошибок на raise
+
+def coroutine(f: Callable) -> Callable:
+    """
+    Декоратор для инициализации генератора.
+    """
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        gen = f(*args, **kwargs)
+        gen.send(None)
+        return gen
+    return wrap
 
 def get_world_time(user_timezone: str) -> dict[str, Any] | None:
     """
