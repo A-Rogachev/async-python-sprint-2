@@ -1,5 +1,8 @@
-from enum import Enum
+
+import os
+import json
 from datetime import datetime
+from enum import Enum
 from typing import Any, Callable
 
 from logging_setup import setup_logger
@@ -19,6 +22,8 @@ class JobStatuses(Enum):
     STOPPED = 'stopped'
     DONE = 'done'
 
+class JobObject:
+    NUMBER = 0
 
 
 class Job:
@@ -48,14 +53,37 @@ class Job:
         self._tries = tries
         self._dependencies = dependencies or []
         self._job_status = job_status
+        self._id = JobObject.NUMBER
+
+        JobObject.NUMBER += 1
+        self.file_name = self.create_temp_json_file()
+        print(self.file_name)
+
+
+    def create_temp_json_file(self) -> str:
+        """
+        Создает файл с информацией о задаче.
+        """
+        file_path = '.scheduler_temp_folder'
+        new_json_file = {
+            **vars(self)
+        }
+        new_json_file['_task'] = id(self._task)
+        new_json_file['_job_status'] = str(self._job_status)
+        file_name = f'{file_path}/{self._id}_task.json'
+        with open(file_name, 'w') as f:
+            json.dump(new_json_file, f)
+
+        return file_name
 
     def run(self):
         """
         Запуск задачи.
         """
+
         if self.job_dependencies_are_done():
             try:
-                return self._task(*self.args, **self.kwargs)
+                return self._task(*self._args, **self._kwargs)
             except Exception as job_error:
                 job_logger.error(f'Job error: {job_error}')
                 return None
@@ -67,6 +95,12 @@ class Job:
                 # else:
                 #     self.is_running = False
                 #     return None
+
+    def job_dependencies_are_done(self):
+        """
+        Проверяет, завершены ли задачи-зависимости.
+        """
+        return True
 
     def check_job_dependencies(self):
         """
