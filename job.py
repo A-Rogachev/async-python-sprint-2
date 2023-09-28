@@ -23,7 +23,7 @@ class Job:
         kwargs=None,
         start_at='',
         max_working_time=-1,
-        tries=0,
+        tries=3,
         dependencies=None,
         job_status='CREATED'
     ) -> None:
@@ -37,7 +37,7 @@ class Job:
         self._max_working_time = max_working_time
         self._tries = tries
         self._dependencies = dependencies or []
-        self._job_status = job_status
+        self._status = job_status
 
     def run(self):
         """
