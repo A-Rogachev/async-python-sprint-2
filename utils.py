@@ -6,6 +6,7 @@ from datetime import datetime
 from functools import wraps
 from http import HTTPStatus
 from http.client import HTTPResponse
+from time import sleep
 from typing import Any, Callable
 
 # TODO: заменить return в случае ошибок на raise
@@ -52,14 +53,60 @@ def get_world_time(user_timezone: str) -> dict[str, Any] | None:
         data.get('datetime'),
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
-
-    return {
+    result = {
         'ip address': data.get('client_ip'),
         'date': user_datetime.date().strftime('%d.%m.%Y'),
         'time': user_datetime.time().strftime('%H:%M'),
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
     }
+    print(result)   #  NOTE: побочный эффект выполнения функции.
+    return result
+
+
+def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
+    """
+    Использует сервис worldtimeapi.org для получения информации о
+    времени и часовом поясе пользователя, исходя из переданных
+    пользователем данных.
+    """
+    service_url: str = (
+        'http://worldtimeapi.org/api/timezone/{}'.format(user_timezone)
+    )
+    try:
+        response: HTTPResponse = urllib.request.urlopen(service_url)
+        if response.status != HTTPStatus.OK:
+            raise urllib.error.HTTPError(
+                code=response.status,
+                url=service_url,
+                msg=response.reason,
+                hdrs=response.info(),
+                fp=None,
+            )
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        return {
+            'error': (
+                'can\'t connect to server. '
+                'Check connection and your timezone name, then try again'
+            )
+        }
+    data: dict[str, Any] = json.loads(response.read())
+    user_datetime: datetime = datetime.strptime(
+        data.get('datetime'),
+        '%Y-%m-%dT%H:%M:%S.%f%z',
+    )
+    ##########
+    sleep(2)
+    ##########
+    result = {
+        'ip address': data.get('client_ip'),
+        'date': user_datetime.date().strftime('%d.%m.%Y'),
+        'time': user_datetime.time().strftime('%H:%M'),
+        'utc_offset': data.get('utc_offset'),
+        'utc_datetime': data.get('utc_datetime'),
+    }
+    print(result)   #  NOTE: побочный эффект выполнения функции.
+    return result
 
 
 class ReadWriteFile:
@@ -147,7 +194,7 @@ class FileSystemWork:
 
 
 if __name__ == '__main__':
-    print('main')
+    print('Функции для проверки работы планировщика задач.')
     # if not os.path.exists('test_directory'):
     #     os.mkdir('test_directory')
     # print(FileSystemWork.create_object('test_directory/newfile/234', False))

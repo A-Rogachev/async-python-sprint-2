@@ -1,27 +1,36 @@
-import inspect
+import json
 import multiprocessing
 import os
-import json
 import random
 import shutil
 import sys
+from multiprocessing import Process
 from time import sleep
-
 from typing import NamedTuple
+
 from job import Job
 from logging_setup import setup_logger
-from utils import FileSystemWork, ReadWriteFile, coroutine, get_world_time
+from utils import FileSystemWork, ReadWriteFile, coroutine, get_world_time, get_world_time_slowly
 
 log = setup_logger('schedule')
-from multiprocessing import Process, Queue
 
 
 class StopSignal(NamedTuple):
     """
     Сигнал остановки для планировщика.
     """
+
     signal: str
     process: multiprocessing.Process
+
+
+class CurrentJob(NamedTuple):
+    """
+    Задача в процессе выполнения.
+    """
+
+    job: Job
+    file: str
 
 
 class Scheduler:
@@ -30,8 +39,8 @@ class Scheduler:
     """
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
-        self.running_jobs = []
-        self.pending_jobs = []
+        self.running_jobs: list[tuple[Job, str]] = []
+        self.pending_jobs: list[tuple[Job, str]] = []
         self.working_time: int = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
@@ -45,47 +54,46 @@ class Scheduler:
         else:
             os.mkdir(self.__folder_path)
 
-    def emergency_exit(self, process):
-        """
-        Аварийное завершение планировщика.
-        """
-        process.terminate()
-        sleep(0.5)
-        shutil.rmtree(self.__folder_path)
-        log.error('Scheduler was stopped manually')
-        sys.exit(1)
-
     @coroutine
     def schedule(self):
         """
         Метод добавляет в список задач новую, если пул переполнен,
         задача попадает в список отложенных.
         """
-        new_job = yield
+        new_job: Job | StopSignal = yield
 
         if isinstance(new_job, StopSignal):
             self.emergency_exit(new_job.process)
         else:
             job_file = self.create_file_for_the_job(new_job)
+            self.put_job_in_the_queue(new_job, job_file)
 
-            if len(self.running_jobs) == self.pool_size:
-                self.pending_jobs.append((new_job, job_file))
-                log.info('task was added to pending tasks')
-            else:
-                self.running_jobs.append((new_job, job_file))
-                log.info('task would be executed recently')
+            executing: CurrentJob = self.running_jobs[-1]
 
-                self.change_job_status(job_file, 'RUNNING')
-                while new_job._tries > 0:
-                    try:
-                        result = new_job.run()
-                        self.change_job_status(job_file, 'COMPLETED')
-                    except Exception:                 
-                        new_job._tries -= 1
-                    else:
-                        print(result) # позже удалить
-                        yield result
-                self.change_job_status(job_file, 'FAILED')
+            self.change_job_status(executing.file, 'RUNNING')
+            current_try = 1
+            while current_try <= executing.job._max_tries:
+                try:
+                    result = executing.job.run()
+                    self.change_job_status(executing.file, 'COMPLETED')
+                except Exception:
+                    current_try += 1
+                else:
+                    yield result
+            self.change_job_status(executing.file, 'FAILED')
+            log.error('task failed: {}'.format(executing.job))
+            yield None
+
+    def put_job_in_the_queue(self, new_job, job_file) -> None:
+        """
+        Проверяет очередь для выполняемых задач.
+        """
+        if len(self.running_jobs) == self.pool_size:
+            self.pending_jobs.append(CurrentJob(new_job, job_file))
+            log.info('task was added to pending tasks')
+        else:
+            self.running_jobs.append(CurrentJob(new_job, job_file))
+            log.info('task would be executed recently')
 
     def create_file_for_the_job(self, job):
         """
@@ -111,7 +119,6 @@ class Scheduler:
                 json.dump(data, f)
         except Exception:
             log.warning('scheduler inner error')
-
 
     def run(self):
         """
@@ -141,34 +148,49 @@ class Scheduler:
         shutil.rmtree(self.__folder_path)
         sys.exit(0)
 
-def create_tasks_for_scheduler(mng, scheduler_process):
+    def emergency_exit(self, process):
+        """
+        Аварийное завершение работы планировщика.
+        """
+        process.terminate()
+        sleep(0.5)
+        # shutil.rmtree(self.__folder_path)
+        log.error('Scheduler was stopped manually')
+        sys.exit(1)
+
+
+def create_tasks_for_scheduler(
+    mng: multiprocessing.Manager,
+    scheduler_process: multiprocessing.Process
+) -> None:
     """
     Здесь создаем задачи с рандомным временем.
     """
-    tasks = [
-        Job(
-            get_world_time,
-            kwargs={'user_timezone': 'europe/samara'},
-        ),
-        Job(
-            get_world_time,
-            kwargs={'user_timezone': 'europe/moscow'},
-        ),
-        Job(
-            get_world_time,
-            kwargs={'user_timezone': 'europe/london'},
-            tries=0,
-        ),
-        # StopSignal('STOP', scheduler_process),
-    ]
+    Job1 = Job(
+        get_world_time,
+        kwargs={'user_timezone': 'europe/samara'},
+    )
+    Job2 = Job(
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/moscow'},
+    )
+    Job3 = Job(
+        get_world_time,
+        kwargs={'user_timezone': 'europe/london'},
+        max_tries=0,
+    )
+    Job4 = StopSignal('STOP', scheduler_process)
 
-    for job in tasks:
+    for job in (Job1, Job2, Job3, Job4):
         mng.scheduler.schedule().send(job)
-        sleep(random.choice([1, 2, 3, 0.5, 2.5, 1.5]))
+        if isinstance(job, StopSignal):
+            sleep(6)
+        else:
+            sleep(random.choice([1, 2, 3, 0.5, 2.5, 1.5]))
 
 
 if __name__ == '__main__':
-    task_scheduler = Scheduler(pool_size=5, working_time=30)
+    task_scheduler = Scheduler(pool_size=5, working_time=10)
     mng = multiprocessing.Manager()
     mng.scheduler: Scheduler = task_scheduler
 
@@ -186,3 +208,5 @@ if __name__ == '__main__':
     process_task_creator.start()
     process_scheduler.join()
     process_task_creator.join()
+
+# Стоп-сигнал вручную останавливает планировщик.
