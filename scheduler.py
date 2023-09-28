@@ -14,6 +14,7 @@ from logging_setup import setup_logger
 from utils import (FileSystemWork, ReadWriteFile, coroutine, get_world_time,
                    get_world_time_slowly)
 
+DATETIME_SCHEDULER_FORMAT: str = r'%d.%m.%Y %H:%M'
 log = setup_logger('schedule')
 
 
@@ -79,20 +80,21 @@ class Scheduler:
             job_file = self.create_file_for_the_job(new_job)
             self.put_job_in_the_queue(new_job, job_file)
 
-            executing = self.get_current_executing_job()
-            self.change_job_status(executing.file, 'RUNNING')
-            current_try = 1
-            while current_try <= executing.job._max_tries:
-                try:
-                    result = executing.job.run()
-                    self.change_job_status(executing.file, 'COMPLETED')
-                except Exception:
-                    current_try += 1
-                else:
-                    yield result
-            self.change_job_status(executing.file, 'FAILED')
-            log.error('task failed: {}'.format(executing.job))
-            yield None
+            if new_job:
+                executing = self.get_current_executing_job()
+                self.change_job_status(executing.file, 'RUNNING')
+                current_try = 1
+                while current_try <= executing.job._max_tries:
+                    try:
+                        result = executing.job.run()
+                        self.change_job_status(executing.file, 'COMPLETED')
+                    except Exception:
+                        current_try += 1
+                    else:
+                        yield result
+                self.change_job_status(executing.file, 'FAILED')
+                log.error('task failed: {}'.format(executing.job))
+                yield None
 
     def put_job_in_the_queue(self, new_job, job_file) -> None:
         """
@@ -105,9 +107,12 @@ class Scheduler:
         if len(self.running_jobs) == self.pool_size:
             self.pending_jobs.append(CurrentJob(new_job, job_file))
             log.info('task was added to pending tasks')
-        elif datetime.datetime.now() < datetime.datetime.strptime(
-            new_job._start_at,
-            '%d-%m-%Y %H:%M'
+        elif (
+            new_job._start_at
+            and datetime.datetime.now() < datetime.datetime.strptime(
+                new_job._start_at,
+                DATETIME_SCHEDULER_FORMAT,
+            )
         ):
             self.jobs_with_start_time.append(
                 JobWithDate(new_job, job_file, new_job._start_at)
@@ -124,7 +129,8 @@ class Scheduler:
         if self.jobs_with_start_time:
             for job in self.jobs_with_start_time:
                 if datetime.datetime.now() >= datetime.datetime.strptime(
-                    job.start_time, '%d-%m-%Y %H:%M'
+                    job.start_time,
+                    DATETIME_SCHEDULER_FORMAT,
                 ):
                     return self.jobs_with_start_time.pop()
         else:
@@ -215,11 +221,16 @@ def create_tasks_for_scheduler(
     # что функции у которых не осталось попыток на выполнение, завершаются.
     Job3 = Job(
         get_world_time,
-        kwargs={'user_timezone': 'europe/london'},
-        max_tries=0,
+        kwargs={'user_timezone': 'europe/saratov'},
+        # max_tries=0,
     )
     # Стоп-сигнал для планировщика (пример аварийного завершения работы).
-    Job4 = StopSignal('STOP', scheduler_process)
+    Job4 = Job(
+        get_world_time,
+        kwargs={'user_timezone': 'europe/london'},
+        # start_at='29.09.2023 02:28',
+    )
+    # Job4 = StopSignal('STOP', scheduler_process)
 
     for job in (Job1, Job2, Job3, Job4):
         mng.scheduler.schedule().send(job)
@@ -230,7 +241,7 @@ def create_tasks_for_scheduler(
 
 
 if __name__ == '__main__':
-    task_scheduler = Scheduler(pool_size=5, working_time=10)
+    task_scheduler = Scheduler(pool_size=5, working_time=20)
     mng = multiprocessing.Manager()
     mng.scheduler: Scheduler = task_scheduler
 
