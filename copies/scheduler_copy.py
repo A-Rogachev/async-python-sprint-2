@@ -1,11 +1,10 @@
-import inspect
 import multiprocessing
 import os
-import json
 import random
 import shutil
 import sys
 from time import sleep
+import inspect
 
 from job import Job
 from logging_setup import setup_logger
@@ -21,86 +20,86 @@ class Scheduler:
     """
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
-        self.running_jobs = []
-        self.pending_jobs = []
-        self.working_time: int = working_time
-        self.__folder_path: str = './.scheduler_temp_folder/'
+        self.running_jobs: list[Job | None] = []
+        self.pending_jobs: list[Job | None ] = []
+        self.time_left: int = working_time
 
     def create_directory_for_temp_files(self):
         """
         Создает директорию для хранения файлов с информацией о задачах.
         """
-        if os.path.exists(self.__folder_path):
-            for file in os.listdir(self.__folder_path):
-                os.remove(os.path.join(self.__folder_path, file))
+        folder_path = './.scheduler_temp_folder/'
+        if os.path.exists(folder_path):
+            for file in os.listdir(folder_path):
+                os.remove(os.path.join(folder_path, file))
         else:
-            os.mkdir(self.__folder_path)
+            os.mkdir(folder_path)
+
+    def job_is_already_in_queue(self, job) -> bool:
+        """
+        Проверяет наличие задачи в очереди.
+        """
+        return job in self.running_jobs
 
     @coroutine
-    def schedule(self):
+    def schedule(self, new_job: Job):
         """
         Метод добавляет в список задач новую, если пул переполнен,
         задача попадает в список отложенных.
         """
-
-        new_job = yield
-        job_file = self.create_file_for_the_job(new_job)
-
         if len(self.running_jobs) == self.pool_size:
-            self.pending_jobs.append((new_job, job_file))
+            self.pending_jobs.append(new_job)
             schedule_logger.info('task was added to pending tasks')
         else:
-            self.running_jobs.append((new_job, job_file))
+            self.running_jobs.append(new_job)
             schedule_logger.info('task would be executed recently')
             try:
                 result = new_job.run()
             except Exception:
                 # здесь уменьшаем количество попыток для задачи
                 new_job._tries += 1
-        print(result) # позже удалить
+
         yield result
 
-
-    def create_file_for_the_job(self, job):
-        """
-        Создает временный файл с информацией о задаче.
-        """
-        job._status = 'AWAITING'
-        new_json_file = {**vars(job)}
-        new_json_file['_task'] = id(job)
-        file_name = f'{self.__folder_path}/{self.job_id}.json'
-        with open(file_name, 'w') as f:
-            json.dump(new_json_file, f)
-        return file_name
+        # if len(self.running_jobs) < self.pool_size:
+        #     self.running_jobs.append(new_job)
+        #     schedule_logger.info('Job scheduled: %s', new_job)
+        # else:
+        #     self.pending_jobs.append(new_job)
+        #     schedule_logger.info('Job added to pending: %s', new_job)
 
     def run(self):
         """
         Запуск планировщика задач.
-        Для временных файлов создается рабочая директория.
         """
         self.create_directory_for_temp_files()
         while True:
             schedule_logger.info('waiting for task')
             sleep(1)
-            self.working_time -= 1
-            if not self.working_time:
+            self.time_left -= 1
+            if not self.time_left:
                 break
         self.stop()
+
+    def restart(self):
+        """
+        Перезапуск всех выполняющихся задач.
+        """
+        # for job in self.running_jobs:
+        #     job.stop() 
+        #     job.run()
 
     def stop(self):
         """
         Остановка всех выполняющихся задач.
         """
-        schedule_logger.warning('Stopping all jobs - there is no time left.')
+        schedule_logger.info('Stopping all jobs - there is no time left.')
         sleep(1)
         for job in self.running_jobs:
             job.stop()
-        # здесь проверка что таски действительно завершены.
         schedule_logger.info('All jobs stopped. Bye.')
-
         shutil.rmtree('./.scheduler_temp_folder')
         sys.exit(0)
-
 
 def create_tasks_for_scheduler(mng):
     """
@@ -108,16 +107,15 @@ def create_tasks_for_scheduler(mng):
     """
     job1 = Job(get_world_time, kwargs={'user_timezone': 'europe/samara'})
     job2 = Job(get_world_time, kwargs={'user_timezone': 'europe/moscow'})
-    job3 = Job(get_world_time, kwargs={'user_timezone': 'europe/london'})
 
 
-    for job in (job1, job2, job3):
-        mng.scheduler.schedule().send(job)
+    for job in (job1, job2):
+        mng.scheduler.schedule(job)
         sleep(random.choice([1, 2, 3, 0.5, 2.5, 1.5]))
 
 
 if __name__ == '__main__':
-    task_scheduler = Scheduler(pool_size=5, working_time=10)
+    task_scheduler = Scheduler(pool_size=5, working_time=3)
     mng = multiprocessing.Manager()
     mng.scheduler: Scheduler = task_scheduler
 
