@@ -1,4 +1,5 @@
 
+import multiprocessing
 import os
 from datetime import datetime
 from typing import Any, Callable
@@ -37,11 +38,31 @@ class Job:
         self._dependencies = dependencies or []
         self._status = job_status
 
+    def execute_with_timeout(self, timeout: int):
+        """
+        Выполнение задачи с учетом заданного максимального
+        времени выполнения.
+        """
+
+        task_process = multiprocessing.Process(
+            target=self._task,
+            args=self._args,
+            kwargs=self._kwargs,
+        )
+        task_process.start()
+        task_process.join(timeout)
+        if task_process.is_alive():
+            task_process.terminate()
+            task_process.join()
+            raise TimeoutError('Task execution timed out')
+
     def run(self):
         """
         Запуск задачи.
         """
         try:
+            if self._max_working_time > 0:
+                return self.execute_with_timeout(self._max_working_time)
             return self._task(*self._args, **self._kwargs)
         except Exception as job_error:
             log.error(f'Job error: {job_error}')
@@ -51,20 +72,4 @@ class Job:
         """
         Строковое представление задачи.
         """
-
         return f'<Job {self._task.__name__}, {id(self)}>'
-
-    # def pause(self):
-    #     """
-    #     Приостановка задачи.
-    #     """
-    #     self.is_paused = True
-        # print('Task paused')
-
-    # def stop(self):
-    #     """
-    #     Остановка задачи.
-    #     """
-    #     self.is_paused = False
-    #     self.is_running = False
-        # print('Task stopped')

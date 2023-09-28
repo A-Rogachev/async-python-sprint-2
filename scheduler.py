@@ -1,3 +1,4 @@
+import datetime
 import json
 import multiprocessing
 import os
@@ -10,7 +11,8 @@ from typing import NamedTuple
 
 from job import Job
 from logging_setup import setup_logger
-from utils import FileSystemWork, ReadWriteFile, coroutine, get_world_time, get_world_time_slowly
+from utils import (FileSystemWork, ReadWriteFile, coroutine, get_world_time,
+                   get_world_time_slowly)
 
 log = setup_logger('schedule')
 
@@ -33,14 +35,25 @@ class CurrentJob(NamedTuple):
     file: str
 
 
+class JobWithDate(NamedTuple):
+    """
+    Задача в списке отложенных.
+    """
+
+    job: Job
+    file: str
+    start_time: datetime.datetime
+
+
 class Scheduler:
     """
     Планировщик задач.
     """
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
-        self.running_jobs: list[tuple[Job, str]] = []
+        self.running_jobs: list[CurrentJob] = []
         self.pending_jobs: list[tuple[Job, str]] = []
+        self.jobs_with_start_time: list[tuple[JobWithDate, str]] = []
         self.working_time: int = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
@@ -49,10 +62,8 @@ class Scheduler:
         Создает директорию для хранения файлов с информацией о задачах.
         """
         if os.path.exists(self.__folder_path):
-            for file in os.listdir(self.__folder_path):
-                os.remove(os.path.join(self.__folder_path, file))
-        else:
-            os.mkdir(self.__folder_path)
+            shutil.rmtree(self.__folder_path)
+        os.mkdir(self.__folder_path)
 
     @coroutine
     def schedule(self):
@@ -68,8 +79,7 @@ class Scheduler:
             job_file = self.create_file_for_the_job(new_job)
             self.put_job_in_the_queue(new_job, job_file)
 
-            executing: CurrentJob = self.running_jobs[-1]
-
+            executing = self.get_current_executing_job()
             self.change_job_status(executing.file, 'RUNNING')
             current_try = 1
             while current_try <= executing.job._max_tries:
@@ -87,13 +97,38 @@ class Scheduler:
     def put_job_in_the_queue(self, new_job, job_file) -> None:
         """
         Проверяет очередь для выполняемых задач.
+        В случае если у задачи назначено время выполнения, она попадает
+        в приоритетную очередь для задач с временем выполнения, если нет - в
+        очередь задач на выполнение. В случае если пул задач переполнен,
+        задача отправляется в очередь отложенных задач.
         """
         if len(self.running_jobs) == self.pool_size:
             self.pending_jobs.append(CurrentJob(new_job, job_file))
             log.info('task was added to pending tasks')
+        elif datetime.datetime.now() < datetime.datetime.strptime(
+            new_job._start_at,
+            '%d-%m-%Y %H:%M'
+        ):
+            self.jobs_with_start_time.append(
+                JobWithDate(new_job, job_file, new_job._start_at)
+            )
+            log.info('task would be executed at user time')
         else:
             self.running_jobs.append(CurrentJob(new_job, job_file))
             log.info('task would be executed recently')
+
+    def get_current_executing_job(self) -> CurrentJob | JobWithDate:
+        """
+        Получает текущую задачу для выполнения.
+        """
+        if self.jobs_with_start_time:
+            for job in self.jobs_with_start_time:
+                if datetime.datetime.now() >= datetime.datetime.strptime(
+                    job.start_time, '%d-%m-%Y %H:%M'
+                ):
+                    return self.jobs_with_start_time.pop()
+        else:
+            return self.running_jobs.pop()
 
     def create_file_for_the_job(self, job):
         """
@@ -144,8 +179,6 @@ class Scheduler:
             job.stop()
         # здесь проверка что таски действительно завершены.
         log.info('All jobs stopped. Bye.')
-
-        shutil.rmtree(self.__folder_path)
         sys.exit(0)
 
     def emergency_exit(self, process):
@@ -166,19 +199,26 @@ def create_tasks_for_scheduler(
     """
     Здесь создаем задачи с рандомным временем.
     """
+    # Обычная функция
     Job1 = Job(
         get_world_time,
         kwargs={'user_timezone': 'europe/samara'},
     )
+    # Функция с замедлением, в случае увеличения параметра max_working_time
+    # до 3 секунд, не выполняется (TimeoutError)
     Job2 = Job(
         get_world_time_slowly,
         kwargs={'user_timezone': 'europe/moscow'},
+        max_working_time=2,
     )
+    # Функция с количеством попыток=0, используется чтобы показать,
+    # что функции у которых не осталось попыток на выполнение, завершаются.
     Job3 = Job(
         get_world_time,
         kwargs={'user_timezone': 'europe/london'},
         max_tries=0,
     )
+    # Стоп-сигнал для планировщика (пример аварийного завершения работы).
     Job4 = StopSignal('STOP', scheduler_process)
 
     for job in (Job1, Job2, Job3, Job4):
@@ -202,7 +242,6 @@ if __name__ == '__main__':
         name='<TASKS_PROCESS>',
         target=create_tasks_for_scheduler,
         args=[mng, process_scheduler],
-        daemon=True,
     )
     process_scheduler.start()
     process_task_creator.start()

@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 # TODO: заменить return в случае ошибок на raise
 
+
 def coroutine(f: Callable) -> Callable:
     """
     Декоратор для инициализации генератора.
@@ -21,6 +22,7 @@ def coroutine(f: Callable) -> Callable:
         gen.send(None)
         return gen
     return wrap
+
 
 def get_world_time(user_timezone: str) -> dict[str, Any] | None:
     """
@@ -60,7 +62,7 @@ def get_world_time(user_timezone: str) -> dict[str, Any] | None:
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
     }
-    print(result)   #  NOTE: побочный эффект выполнения функции.
+    print(result)   # NOTE: побочный эффект выполнения функции.
     return result
 
 
@@ -95,9 +97,9 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         data.get('datetime'),
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
-    ##########
-    sleep(2)
-    ##########
+    ##########################################################################
+    sleep(1)
+    ##########################################################################
     result = {
         'ip address': data.get('client_ip'),
         'date': user_datetime.date().strftime('%d.%m.%Y'),
@@ -105,7 +107,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
     }
-    print(result)   #  NOTE: побочный эффект выполнения функции.
+    print(result)   # NOTE: побочный эффект выполнения функции.
     return result
 
 
