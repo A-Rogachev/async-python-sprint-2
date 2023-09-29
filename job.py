@@ -30,12 +30,9 @@ class Job:
         """
         self._name = name or ''
         self._task = task
-
         self._args = args or []
         self._kwargs = kwargs or {}
-
         self._start_at = start_at or None
-
         self._max_working_time = max_working_time
         self._max_tries = max_tries
         
@@ -46,13 +43,9 @@ class Job:
         """
         Запуск задачи.
         """
-        try:
-            if self._max_working_time:
-                return self.execute_with_timeout(self._max_working_time)
-            return self._task(*self._args, **self._kwargs)
-        except Exception as job_error:
-            log.error(f'Job error: {job_error}')
-            raise Exception('Job error')
+        if self._max_working_time:
+            return self.execute_with_timeout(self._max_working_time)
+        return self._task(*self._args, **self._kwargs)
 
     def execute_with_timeout(self, timeout: int) -> Any:
         """

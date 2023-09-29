@@ -28,7 +28,7 @@ class StopSignal(NamedTuple):
 
 class Scheduler:
     """
-    Планировщик задач.
+    Инициализация объекта класса Scheduler (планировщик задач).
     """
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
@@ -38,7 +38,7 @@ class Scheduler:
         self.working_time: int = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
-        self.create_directory_for_temp_files()
+        self._create_directory_for_temp_files()
         self.checking_process = multiprocessing.Process(target=self.checking_new_jobs, args=[self.delayed_jobs], daemon=True)
         self.checking_process.start()
         
@@ -53,11 +53,11 @@ class Scheduler:
             self.working_time -= 1
             if not self.working_time:
                 break
-        self.stop()
+        self._stop()
 
     def checking_new_jobs(self, delayed_jobs):
         """
-        Проверка задач на выполнение.
+        Проверка задач с отложенным запуском.
         """
         while True:
             sleep(1)
@@ -79,10 +79,9 @@ class Scheduler:
         задача попадает в список отложенных.
         """
         new_job = yield
-
         # В случае если получаем стоп-сигнал, завершаем работу планировщика.
         if isinstance(new_job, StopSignal):
-            self.emergency_exit(new_job.process)
+            self._emergency_exit(new_job.process)
 
         # В случае если новая задача имеет конкретное время выполнения.
         if new_job._start_at and right_now() < new_job._start_at:
@@ -106,7 +105,7 @@ class Scheduler:
                     if current_try + 1 > new_job._max_tries:
                         break
                 else:
-                    log.info(f'Task finished: {new_job}')
+                    log.success(f'Task finished: {new_job}')
                     yield result
         yield None
 
@@ -121,7 +120,7 @@ class Scheduler:
             #     yield None
 
 ###############################################################################
-    def create_directory_for_temp_files(self):
+    def _create_directory_for_temp_files(self):
         """
         Создает директорию для хранения файлов с информацией о задачах.
         """
@@ -129,7 +128,7 @@ class Scheduler:
             shutil.rmtree(self.__folder_path)
         os.mkdir(self.__folder_path)
         
-    def stop(self):
+    def _stop(self):
         """
         Завершение работы планировщика.
         """
@@ -138,15 +137,15 @@ class Scheduler:
         log.info('All jobs stopped. Bye.')
         sys.exit(0)
 
-    def emergency_exit(self, process):
+    def _emergency_exit(self, process):
         """
         Аварийное завершение работы планировщика.
         """
         process.terminate()
         sleep(0.5)
         shutil.rmtree(self.__folder_path)
-        log.error('Scheduler was stopped manually')
-        sys.exit(1)
+        log.warning('Scheduler was stopped manually')
+        sys.exit(0)
 
 #     def create_file_for_the_job(self, job):
 #         """
