@@ -14,6 +14,7 @@ class Job:
 
     def __init__(
         self,
+        name,
         task,
         args=None,
         kwargs=None,
@@ -26,6 +27,7 @@ class Job:
         """
         Инициализация объекта задачи, используемой в работе планировщика.
         """
+        self._name = name or ''
         self._task = task
 
         self._args = args or []

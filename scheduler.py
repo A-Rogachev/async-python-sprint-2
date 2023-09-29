@@ -114,13 +114,16 @@ class Scheduler:
         else:
             log.info(f'Task id{id(new_job)} will be executed right now.')
         # Случай с обычной задачей.
-            try:
-                result = new_job.run()
-            except Exception:
-                log.error('task failed: {}'.format(new_job))
-                yield None
-            else:
-                yield result
+            
+            current_try: int = 1
+            while current_try <= new_job._max_tries:
+                try:
+                    result = new_job.run()
+                except Exception:
+                    log.error('task failed: {}'.format(new_job))
+                    yield None
+                else:
+                    yield result
         yield None
 
 
@@ -182,22 +185,31 @@ def user_tasks_for_scheduler(
     """
     
     Job1 = Job(
+        'Обычная задача',
         get_world_time,
         kwargs={'user_timezone': 'europe/samara'},
     )
     Job2 = Job(
+        'Запланированная задача - позже на 15 сек.',
         get_world_time,
         kwargs={'user_timezone': 'europe/moscow'},
         start_at=right_now() + datetime.timedelta(seconds=15)
     )
     Job3 = Job(
+        'Запланированная задача - позже на 12 сек.',
         get_world_time,
         kwargs={'user_timezone': 'europe/london'},
         start_at=right_now() + datetime.timedelta(seconds=12)
     )
+    Job4 = Job(
+        'Время попыток уменьшено до 0, с целью показать обработку ошибок',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/saratov'},
+        max_tries=0,
+    )
     # stop_signal = StopSignal('STOP', scheduler_process)
 
-    for job in (Job1, Job2, Job3):
+    for job in (Job1, Job2, Job3, Job4):
         sleep(3)
         mng.scheduler.schedule().send(job)
 
