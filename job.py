@@ -68,8 +68,14 @@ class Job:
             log.error(f'Job error: {job_error}')
             raise Exception('Job error')
 
-#     def __str__(self):
-#         """
-#         Строковое представление задачи.
-#         """
-#         return f'<Job {self._task.__name__}, {id(self)}>'
+    def __str__(self):
+        """
+        Строковое представление задачи.
+        """
+        return f'<Job {id(self)}>'
+    
+    def __repr__(self) -> str:
+        """
+        Строковое формальное представление задачи.
+        """
+        return self.__str__()

@@ -8,7 +8,7 @@ import sys
 import threading
 from time import sleep
 from typing import NamedTuple
-
+from threading import Lock
 from job import Job
 from logging_setup import setup_logger
 from utils import coroutine, get_world_time
@@ -17,6 +17,7 @@ from utils import coroutine, get_world_time
 # DATETIME_SCHEDULER_FORMAT: str = r'%d.%m.%Y %H:%M'
 log = setup_logger('schedule')
 right_now = datetime.datetime.now
+lock = Lock()
 
 class StopSignal(NamedTuple):
     """
@@ -54,7 +55,7 @@ class Scheduler:
         self.pool_size: int = pool_size
         self.running_jobs = queue.Queue()
         self.pending_jobs = queue.Queue()
-        self.delayed_jobs = queue.Queue()
+        self.delayed_jobs = []
         self.working_time = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
@@ -79,13 +80,19 @@ class Scheduler:
         Проверка задач на выполнение.
         """
         while True:
-            # Проверяем отложенные задачи.
+            lock.acquire()
+            print('now here', self.delayed_jobs)
+            lock.release()
+
             sleep(1)
-            for job in self.delayed_jobs.queue:
-                if datetime.datetime.now() >= job._start_at:
-                    print(self.delayed_jobs)
-                    self.schedule().send(self.delayed_jobs.get())
-                    break
+            # Проверяем отложенные задачи.
+            if self.delayed_jobs:
+                for job in self.delayed_jobs:
+                    if right_now() >= job._start_at:
+                        break
+                next_job = self.delayed_jobs.pop(0)
+                next_job._start_at = None
+                self.schedule().send(next_job)
 
     @coroutine
     def schedule(self):
@@ -101,12 +108,19 @@ class Scheduler:
 
         # В случае если новая задача имеет конкретное время выполнения.
         if new_job._start_at and right_now() < new_job._start_at:
-            print(new_job._start_at, right_now(), new_job._start_at)
-            self.delayed_jobs.put(new_job)
+
+            lock.acquire()           
+            self.delayed_jobs.insert(0, new_job)
+            print(self.delayed_jobs)
+            lock.release()
+
+            log.warning(f'Task id{id(new_job)} will be executed at {new_job._start_at}.')
         else:
+            log.info(f'Task id{id(new_job)} will be executed right now.')
         # Случай с обычной задачей.
             result = new_job.run()
             yield result
+        print('here')
         yield None
 
 
