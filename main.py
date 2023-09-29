@@ -43,11 +43,13 @@ def user_tasks_for_scheduler(
         kwargs={'user_timezone': 'europe/rome'},
         max_working_time=2,
     )
-    # stop_signal = StopSignal('STOP', scheduler_process)
+    stop_signal = StopSignal('STOP', scheduler_process)
 
     for job in (Job1, Job2, Job3, Job4, Job5):
         sleep(3)
         mng.scheduler.schedule().send(job)
+    sleep(5)
+    mng.scheduler.schedule().send(stop_signal)        
 
 #####################################################
 ##### Для запуска планировщика: python3 main.py #####
