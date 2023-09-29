@@ -55,15 +55,14 @@ class Scheduler:
         self.pool_size: int = pool_size
         self.running_jobs = queue.Queue()
         self.pending_jobs = queue.Queue()
-        self.delayed_jobs = []
+        self.delayed_jobs = multiprocessing.Manager().list()
         self.working_time = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
         self.create_directory_for_temp_files()
-        # self.checking_thread = threading.Thread(target=self.checking_new_jobs, daemon=True)
-        # self.checking_thread.start()
         self.checking_process = multiprocessing.Process(target=self.checking_new_jobs, args=[self.delayed_jobs], daemon=True)
         self.checking_process.start()
+        
 
     def run(self):
         """
@@ -82,18 +81,14 @@ class Scheduler:
         Проверка задач на выполнение.
         """
         while True:
-            lock.acquire()
-            print('now here', delayed_jobs)
-            lock.release()
-
             sleep(1)
-            # Проверяем отложенные задачи.
             if delayed_jobs:
-                new_job = None
+                new_task_is_ready: bool = False
                 for i, job in enumerate(delayed_jobs):
-                    if right_now() >= job._start_at:
-                        new_job = True
+                    if right_now() > job._start_at:
+                        flag = True
                         break
+                if new_task_is_ready:
                     next_job = delayed_jobs.pop(i)
                     next_job._start_at = None
                     self.schedule().send(next_job)
@@ -112,19 +107,20 @@ class Scheduler:
 
         # В случае если новая задача имеет конкретное время выполнения.
         if new_job._start_at and right_now() < new_job._start_at:
-
             lock.acquire()           
             self.delayed_jobs.insert(0, new_job)
-            print(self.delayed_jobs)
             lock.release()
-
             log.warning(f'Task id{id(new_job)} will be executed at {new_job._start_at}.')
         else:
             log.info(f'Task id{id(new_job)} will be executed right now.')
         # Случай с обычной задачей.
-            result = new_job.run()
-            yield result
-        print('here')
+            try:
+                result = new_job.run()
+            except Exception:
+                log.error('task failed: {}'.format(new_job))
+                yield None
+            else:
+                yield result
         yield None
 
 
@@ -194,9 +190,14 @@ def user_tasks_for_scheduler(
         kwargs={'user_timezone': 'europe/moscow'},
         start_at=right_now() + datetime.timedelta(seconds=15)
     )
+    Job3 = Job(
+        get_world_time,
+        kwargs={'user_timezone': 'europe/london'},
+        start_at=right_now() + datetime.timedelta(seconds=12)
+    )
     # stop_signal = StopSignal('STOP', scheduler_process)
 
-    for job in (Job1, Job2):
+    for job in (Job1, Job2, Job3):
         sleep(3)
         mng.scheduler.schedule().send(job)
 
