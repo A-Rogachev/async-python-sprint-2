@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import urllib.request
-from datetime import datetime
+import datetime
 from functools import wraps
 from http import HTTPStatus
 from http.client import HTTPResponse
@@ -51,7 +51,7 @@ def get_world_time(user_timezone: str) -> dict[str, Any] | None:
             )
         }
     data: dict[str, Any] = json.loads(response.read())
-    user_datetime: datetime = datetime.strptime(
+    user_datetime: datetime.datetime | None = datetime.datetime.strptime(
         data.get('datetime'),
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
@@ -93,7 +93,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
             )
         }
     data: dict[str, Any] = json.loads(response.read())
-    user_datetime: datetime = datetime.strptime(
+    user_datetime: datetime.datetime = datetime.datetime.strptime(
         data.get('datetime'),
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
@@ -200,10 +200,6 @@ if __name__ == '__main__':
     # if not os.path.exists('test_directory'):
     #     os.mkdir('test_directory')
     # print(FileSystemWork.create_object('test_directory/newfile/234', False))
-
-    # print(get_world_time('europe/samara'))
-    # print(get_world_time('europe/moscow'))
-    # print(get_world_time('europe/london'))
 
     # ReadWriteFile.rewrite_file('test_directory/test.txt', '123\n456\n789')
     # print(ReadWriteFile.read_from_file('test_directory/test.txt'))

@@ -25,7 +25,7 @@ class ColoredFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logger(name='root', level=logging.INFO) -> logging.RootLogger:
+def setup_logger(name='root', level=logging.INFO) -> logging.Logger:
     """
     Настройка логгера.
     """

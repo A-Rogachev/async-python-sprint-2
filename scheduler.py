@@ -2,18 +2,17 @@ import datetime
 import json
 import multiprocessing
 import os
-import random
 import shutil
 import sys
-from multiprocessing import Process
 from time import sleep
 from typing import NamedTuple
 
 from job import Job
 from logging_setup import setup_logger
-from utils import (FileSystemWork, ReadWriteFile, coroutine, get_world_time,
-                   get_world_time_slowly)
+from utils import coroutine
 
+
+DEPENDENCIES_SECONDS_DELAY: int =  10
 DATETIME_SCHEDULER_FORMAT: str = r'%d.%m.%Y %H:%M'
 log = setup_logger('schedule')
 
@@ -53,8 +52,8 @@ class Scheduler:
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
         self.running_jobs: list[CurrentJob] = []
-        self.pending_jobs: list[tuple[Job, str]] = []
-        self.jobs_with_start_time: list[tuple[JobWithDate, str]] = []
+        self.pending_jobs: list[CurrentJob] = []
+        self.jobs_with_start_time: list[JobWithDate] = []
         self.working_time: int = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
@@ -79,7 +78,6 @@ class Scheduler:
         else:
             job_file = self.create_file_for_the_job(new_job)
             self.put_job_in_the_queue(new_job, job_file)
-
             if new_job:
                 executing = self.get_current_executing_job()
                 self.change_job_status(executing.file, 'RUNNING')
@@ -105,8 +103,40 @@ class Scheduler:
         задача отправляется в очередь отложенных задач.
         """
         if len(self.running_jobs) == self.pool_size:
-            self.pending_jobs.append(CurrentJob(new_job, job_file))
+            self.pending_jobs.insert(0, CurrentJob(new_job, job_file))
             log.info('task was added to pending tasks')
+        # случай, когда у задачи есть зависимости
+        elif new_job._dependencies:
+            date_max, job_with_date_max = datetime.datetime.now(), None
+            for job in new_job._dependencies:
+                if job._start_at and datetime.datetime.strptime(
+                    job._start_at,
+                    DATETIME_SCHEDULER_FORMAT,
+                ) > date_max:
+                    date_max = datetime.datetime.strptime(
+                        job._start_at,
+                        DATETIME_SCHEDULER_FORMAT,
+                    )
+                    job_with_date_max = job
+            if job_with_date_max:
+                if job_with_date_max._max_working_time > 0:
+                    new_job._start_at = date_max + datetime.timedelta(
+                        seconds=job_with_date_max._max_working_time
+                    ) + datetime.timedelta(seconds=DEPENDENCIES_SECONDS_DELAY)
+                else:
+                    new_job._start_at = date_max + datetime.timedelta(
+                        seconds=DEPENDENCIES_SECONDS_DELAY
+                    )
+                self.jobs_with_start_time.insert(
+                    0,
+                    JobWithDate(
+                        new_job,
+                        job_file,
+                        new_job._start_at,
+                    )
+                )
+            else:
+                self.pending_jobs.insert(0, CurrentJob(new_job, job_file))
         elif (
             new_job._start_at
             and datetime.datetime.now() < datetime.datetime.strptime(
@@ -114,12 +144,13 @@ class Scheduler:
                 DATETIME_SCHEDULER_FORMAT,
             )
         ):
-            self.jobs_with_start_time.append(
-                JobWithDate(new_job, job_file, new_job._start_at)
+            self.jobs_with_start_time.insert(
+                0,
+                JobWithDate(new_job, job_file, new_job._start_at),
             )
             log.info('task would be executed at user time')
         else:
-            self.running_jobs.append(CurrentJob(new_job, job_file))
+            self.running_jobs.insert(0, CurrentJob(new_job, job_file))
             log.info('task would be executed recently')
 
     def get_current_executing_job(self) -> CurrentJob | JobWithDate:
@@ -134,7 +165,11 @@ class Scheduler:
                 ):
                     return self.jobs_with_start_time.pop()
         else:
-            return self.running_jobs.pop()
+            next_executing_job: CurrentJob = self.running_jobs.pop()
+            if self.pending_jobs:
+                self.running_jobs.insert(0, self.pending_jobs.pop())
+            return next_executing_job
+
 
     def create_file_for_the_job(self, job):
         """
@@ -181,8 +216,9 @@ class Scheduler:
         """
         log.warning('Stopping all jobs - there is no time left.')
         sleep(1)
-        for job in self.running_jobs:
-            job.stop()
+        # меняем статусы задач на 'STOPPED' или 'ABORTED'
+        # for job in self.running_jobs:
+        #     job.stop()
         # здесь проверка что таски действительно завершены.
         log.info('All jobs stopped. Bye.')
         sys.exit(0)
@@ -198,65 +234,5 @@ class Scheduler:
         sys.exit(1)
 
 
-def create_tasks_for_scheduler(
-    mng: multiprocessing.Manager,
-    scheduler_process: multiprocessing.Process
-) -> None:
-    """
-    Здесь создаем задачи с рандомным временем.
-    """
-    # Обычная функция
-    Job1 = Job(
-        get_world_time,
-        kwargs={'user_timezone': 'europe/samara'},
-    )
-    # Функция с замедлением, в случае увеличения параметра max_working_time
-    # до 3 секунд, не выполняется (TimeoutError)
-    Job2 = Job(
-        get_world_time_slowly,
-        kwargs={'user_timezone': 'europe/moscow'},
-        max_working_time=2,
-    )
-    # Функция с количеством попыток=0, используется чтобы показать,
-    # что функции у которых не осталось попыток на выполнение, завершаются.
-    Job3 = Job(
-        get_world_time,
-        kwargs={'user_timezone': 'europe/saratov'},
-        # max_tries=0,
-    )
-    # Стоп-сигнал для планировщика (пример аварийного завершения работы).
-    Job4 = Job(
-        get_world_time,
-        kwargs={'user_timezone': 'europe/london'},
-        # start_at='29.09.2023 02:28',
-    )
-    # Job4 = StopSignal('STOP', scheduler_process)
-
-    for job in (Job1, Job2, Job3, Job4):
-        mng.scheduler.schedule().send(job)
-        if isinstance(job, StopSignal):
-            sleep(6)
-        else:
-            sleep(random.choice([1, 2, 3, 0.5, 2.5, 1.5]))
-
-
 if __name__ == '__main__':
-    task_scheduler = Scheduler(pool_size=5, working_time=20)
-    mng = multiprocessing.Manager()
-    mng.scheduler: Scheduler = task_scheduler
-
-    process_scheduler = Process(
-        name='<SCHEDULER PROCESS>',
-        target=task_scheduler.run,
-    )
-    process_task_creator = Process(
-        name='<TASKS_PROCESS>',
-        target=create_tasks_for_scheduler,
-        args=[mng, process_scheduler],
-    )
-    process_scheduler.start()
-    process_task_creator.start()
-    process_scheduler.join()
-    process_task_creator.join()
-
-# Стоп-сигнал вручную останавливает планировщик.
+    print('Реализация планировщика задач.')
