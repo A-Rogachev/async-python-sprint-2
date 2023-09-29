@@ -9,8 +9,6 @@ from http.client import HTTPResponse
 from time import sleep
 from typing import Any, Callable
 
-# TODO: заменить return в случае ошибок на raise
-
 
 def coroutine(f: Callable) -> Callable:
     """
@@ -61,10 +59,18 @@ def get_world_time(user_timezone: str) -> dict[str, Any] | None:
         'time': user_datetime.time().strftime('%H:%M'),
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
+        'time_zone': user_timezone,
     }
     print(result)   # NOTE: побочный эффект выполнения функции.
     return result
 
+
+def function_with_error():
+    """
+    Функция для представления обработки количества попыток запуска задачи.
+    """
+    raise Exception('This was requested error just to show the function works.')
+    
 
 def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
     """
@@ -98,7 +104,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
     ##########################################################################
-    sleep(3)
+    sleep(4)
     ##########################################################################
     result = {
         'ip address': data.get('client_ip'),
