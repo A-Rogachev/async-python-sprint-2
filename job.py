@@ -37,6 +37,7 @@ class Job:
 
         self._max_working_time = max_working_time
         self._max_tries = max_tries
+        
         self._dependencies = dependencies or []
         self._status = job_status
 
