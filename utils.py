@@ -194,9 +194,6 @@ class FileSystemWork:
             return None
         return 'Object "{}" not found.'.format(path)
 
-
-if __name__ == '__main__':
-    print('Функции для проверки работы планировщика задач.')
     # if not os.path.exists('test_directory'):
     #     os.mkdir('test_directory')
     # print(FileSystemWork.create_object('test_directory/newfile/234', False))
