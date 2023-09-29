@@ -2,15 +2,16 @@ import datetime
 import json
 import multiprocessing
 import os
+import queue
 import shutil
 import sys
+import threading
 from time import sleep
 from typing import NamedTuple
-import threading
+
 from job import Job
 from logging_setup import setup_logger
-from utils import coroutine
-from utils import get_world_time
+from utils import coroutine, get_world_time
 
 # DEPENDENCIES_SECONDS_DELAY: int =  10
 # DATETIME_SCHEDULER_FORMAT: str = r'%d.%m.%Y %H:%M'
@@ -53,21 +54,18 @@ class Scheduler:
         self.pool_size: int = pool_size
         self.running_jobs = []
         self.pending_jobs = []
-        self.jobs_with_start_time = []
+        self.delayed_jobs = []
         self.working_time = working_time
-
         self.__folder_path: str = './.scheduler_temp_folder/'
+
+        self.create_directory_for_temp_files()
+        self.checking_thread = threading.Thread(target=self.checking_new_jobs)
+        self.checking_thread.start()
 
     def run(self):
         """
         Запуск планировщика задач.
-        Для временных файлов создается рабочая директория.
         """
-        self.create_directory_for_temp_files()
-        
-        checking_thread = threading.Thread(target=self.checking_new_jobs)
-        checking_thread.start()
-
         while True:
             log.info('waiting for task')
             sleep(1)
@@ -77,6 +75,9 @@ class Scheduler:
         self.stop()
 
     def checking_new_jobs(self):
+        """
+        Проверка задач на выполнение.
+        """
         while True:
             sleep(3)
             print(self.running_jobs)
@@ -155,15 +156,20 @@ def user_tasks_for_scheduler(
         get_world_time,
         kwargs={'user_timezone': 'europe/samara'},
     )
-    stop_signal = StopSignal('STOP', scheduler_process)
+    Job2 = Job(
+        get_world_time,
+        kwargs={'user_timezone': 'europe/moscow'},
+        start_at=datetime.datetime.now() + datetime.timedelta(seconds=10)
+    )
+    # stop_signal = StopSignal('STOP', scheduler_process)
 
-    for job in (Job1, stop_signal):
+    for job in (Job1, Job2):
         sleep(5)
         mng.scheduler.schedule().send(job)
 
 
 if __name__ == '__main__':
-    task_scheduler = Scheduler(pool_size=3, working_time=15)
+    task_scheduler = Scheduler(pool_size=3, working_time=40)
 
     mng = multiprocessing.Manager()
     mng.scheduler: Scheduler = task_scheduler
