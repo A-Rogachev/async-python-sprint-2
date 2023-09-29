@@ -60,8 +60,10 @@ class Scheduler:
         self.__folder_path: str = './.scheduler_temp_folder/'
 
         self.create_directory_for_temp_files()
-        self.checking_thread = threading.Thread(target=self.checking_new_jobs, daemon=True)
-        self.checking_thread.start()
+        # self.checking_thread = threading.Thread(target=self.checking_new_jobs, daemon=True)
+        # self.checking_thread.start()
+        self.checking_process = multiprocessing.Process(target=self.checking_new_jobs, args=[self.delayed_jobs], daemon=True)
+        self.checking_process.start()
 
     def run(self):
         """
@@ -75,24 +77,26 @@ class Scheduler:
                 break
         self.stop()
 
-    def checking_new_jobs(self):
+    def checking_new_jobs(self, delayed_jobs):
         """
         Проверка задач на выполнение.
         """
         while True:
             lock.acquire()
-            print('now here', self.delayed_jobs)
+            print('now here', delayed_jobs)
             lock.release()
 
             sleep(1)
             # Проверяем отложенные задачи.
-            if self.delayed_jobs:
-                for job in self.delayed_jobs:
+            if delayed_jobs:
+                new_job = None
+                for i, job in enumerate(delayed_jobs):
                     if right_now() >= job._start_at:
+                        new_job = True
                         break
-                next_job = self.delayed_jobs.pop(0)
-                next_job._start_at = None
-                self.schedule().send(next_job)
+                    next_job = delayed_jobs.pop(i)
+                    next_job._start_at = None
+                    self.schedule().send(next_job)
 
     @coroutine
     def schedule(self):
