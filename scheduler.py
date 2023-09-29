@@ -16,7 +16,7 @@ from utils import coroutine, get_world_time
 # DEPENDENCIES_SECONDS_DELAY: int =  10
 # DATETIME_SCHEDULER_FORMAT: str = r'%d.%m.%Y %H:%M'
 log = setup_logger('schedule')
-
+right_now = datetime.datetime.now
 
 class StopSignal(NamedTuple):
     """
@@ -52,14 +52,14 @@ class Scheduler:
     """
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
-        self.running_jobs = []
-        self.pending_jobs = []
-        self.delayed_jobs = []
+        self.running_jobs = queue.Queue()
+        self.pending_jobs = queue.Queue()
+        self.delayed_jobs = queue.Queue()
         self.working_time = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
 
         self.create_directory_for_temp_files()
-        self.checking_thread = threading.Thread(target=self.checking_new_jobs)
+        self.checking_thread = threading.Thread(target=self.checking_new_jobs, daemon=True)
         self.checking_thread.start()
 
     def run(self):
@@ -79,26 +79,13 @@ class Scheduler:
         Проверка задач на выполнение.
         """
         while True:
-            sleep(3)
-            print(self.running_jobs)
-
-
-    def create_directory_for_temp_files(self):
-        """
-        Создает директорию для хранения файлов с информацией о задачах.
-        """
-        if os.path.exists(self.__folder_path):
-            shutil.rmtree(self.__folder_path)
-        os.mkdir(self.__folder_path)
-        
-    def stop(self):
-        """
-        Завершение работы планировщика.
-        """
-        log.warning('Stopping all jobs - there is no time left.')
-        sleep(1)
-        log.info('All jobs stopped. Bye.')
-        sys.exit(0)
+            # Проверяем отложенные задачи.
+            sleep(1)
+            for job in self.delayed_jobs.queue:
+                if datetime.datetime.now() >= job._start_at:
+                    print(self.delayed_jobs)
+                    self.schedule().send(self.delayed_jobs.get())
+                    break
 
     @coroutine
     def schedule(self):
@@ -108,12 +95,21 @@ class Scheduler:
         """
         new_job = yield
 
+        # В случае если получаем стоп-сигнал, завершаем работу планировщика.
         if isinstance(new_job, StopSignal):
             self.emergency_exit(new_job.process)
-        else:
-            print(new_job)
 
+        # В случае если новая задача имеет конкретное время выполнения.
+        if new_job._start_at and right_now() < new_job._start_at:
+            print(new_job._start_at, right_now(), new_job._start_at)
+            self.delayed_jobs.put(new_job)
+        else:
+        # Случай с обычной задачей.
+            result = new_job.run()
+            yield result
         yield None
+
+
             # job_file = self.create_file_for_the_job(new_job)
             # self.put_job_in_the_queue(new_job, job_file)
             # if new_job:
@@ -132,6 +128,23 @@ class Scheduler:
             #     log.error('task failed: {}'.format(executing.job))
             #     yield None
 
+###############################################################################
+    def create_directory_for_temp_files(self):
+        """
+        Создает директорию для хранения файлов с информацией о задачах.
+        """
+        if os.path.exists(self.__folder_path):
+            shutil.rmtree(self.__folder_path)
+        os.mkdir(self.__folder_path)
+        
+    def stop(self):
+        """
+        Завершение работы планировщика.
+        """
+        log.warning('Stopping all jobs - there is no time left.')
+        sleep(1)
+        log.info('All jobs stopped. Bye.')
+        sys.exit(0)
 
     def emergency_exit(self, process):
         """
@@ -142,6 +155,8 @@ class Scheduler:
         shutil.rmtree(self.__folder_path)
         log.error('Scheduler was stopped manually')
         sys.exit(1)
+
+################################################################################        
 
 ##############################################################################
 def user_tasks_for_scheduler(
@@ -159,12 +174,12 @@ def user_tasks_for_scheduler(
     Job2 = Job(
         get_world_time,
         kwargs={'user_timezone': 'europe/moscow'},
-        start_at=datetime.datetime.now() + datetime.timedelta(seconds=10)
+        start_at=right_now() + datetime.timedelta(seconds=15)
     )
     # stop_signal = StopSignal('STOP', scheduler_process)
 
     for job in (Job1, Job2):
-        sleep(5)
+        sleep(3)
         mng.scheduler.schedule().send(job)
 
 

@@ -1,10 +1,10 @@
 
-# import multiprocessing
-# from typing import Any, Callable
+import multiprocessing
+from typing import Any, Callable
 
-# from logging_setup import setup_logger
+from logging_setup import setup_logger
 
-# log = setup_logger(__name__)
+log = setup_logger(__name__)
 
 
 class Job:
@@ -27,9 +27,12 @@ class Job:
         Инициализация объекта задачи, используемой в работе планировщика.
         """
         self._task = task
+
         self._args = args or []
         self._kwargs = kwargs or {}
+
         self._start_at = start_at or None
+
         self._max_working_time = max_working_time
         self._max_tries = max_tries
         self._dependencies = dependencies or []
@@ -53,17 +56,17 @@ class Job:
 #             task_process.join()
 #             raise TimeoutError('Task execution timed out')
 
-#     def run(self):
-#         """
-#         Запуск задачи.
-#         """
-#         try:
+    def run(self):
+        """
+        Запуск задачи.
+        """
+        try:
 #             if self._max_working_time > 0:
 #                 return self.execute_with_timeout(self._max_working_time)
-#             return self._task(*self._args, **self._kwargs)
-#         except Exception as job_error:
-#             log.error(f'Job error: {job_error}')
-#             raise Exception('Job error')
+            return self._task(*self._args, **self._kwargs)
+        except Exception as job_error:
+            log.error(f'Job error: {job_error}')
+            raise Exception('Job error')
 
 #     def __str__(self):
 #         """
