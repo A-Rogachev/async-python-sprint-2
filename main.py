@@ -24,14 +24,14 @@ def create_tasks_for_scheduler(
     Job2 = Job(
         get_world_time_slowly,
         kwargs={'user_timezone': 'europe/moscow'},
-        max_working_time=2,
+        max_working_time=1,
     )
     # Функция с количеством попыток=0, используется чтобы показать,
     # что функции у которых не осталось попыток на выполнение, завершаются.
     Job3 = Job(
         get_world_time,
         kwargs={'user_timezone': 'europe/saratov'},
-        # max_tries=0,
+        max_tries=0,
     )
     # Стоп-сигнал для планировщика (пример аварийного завершения работы).
     Job4 = Job(
@@ -49,9 +49,9 @@ def create_tasks_for_scheduler(
         kwargs={'user_timezone': 'europe/new_york'},
         # start_at='29.09.2023 02:28',
     )
-    # Job4 = StopSignal('STOP', scheduler_process)
+    Job7 = StopSignal('STOP', scheduler_process)
 
-    for job in (Job1, Job2, Job3, Job4, Job5, Job6):
+    for job in (Job1, Job2, Job3, Job4, Job5, Job6, Job7):
         mng.scheduler.schedule().send(job)
         if isinstance(job, StopSignal):
             sleep(6)

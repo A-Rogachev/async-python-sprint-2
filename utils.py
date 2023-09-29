@@ -98,7 +98,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
     ##########################################################################
-    sleep(1)
+    sleep(3)
     ##########################################################################
     result = {
         'ip address': data.get('client_ip'),
