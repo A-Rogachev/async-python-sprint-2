@@ -5,7 +5,6 @@ import multiprocessing
 import os
 import shutil
 import sys
-
 from time import sleep
 from typing import Any, NamedTuple
 
@@ -13,12 +12,11 @@ from job import JOB_STATUSES, Job
 from logging_setup import setup_logger
 from utils import coroutine
 
-DEPENDENCIES_SECONDS_DELAY: int = 10
+DEPENDENCIES_SECONDS_DELAY: int = 3
 
 log: logging.Logger = setup_logger('schedule')
 right_now = datetime.datetime.now
 lock = multiprocessing.Lock()
-
 emergency_event = multiprocessing.Event()
 
 
@@ -74,20 +72,34 @@ class Scheduler:
 
         if new_job._dependencies:
             lock.acquire()
-            for dependency in new_job._dependencies:
-                dependency._status = JOB_STATUSES.IS_PENDED
-                self._create_temp_job_file(dependency)
-                self.pending_jobs.insert(0, dependency)
-            new_job._status = JOB_STATUSES.IS_PENDED
+            dependency_times: list[datetime.datetime | None] = [
+                dependency._start_at
+                for dependency
+                in new_job._dependencies
+                if dependency._start_at
+            ]
+            max_dependency_start: datetime.datetime = (
+                max(
+                    dependency_times
+                ) + datetime.timedelta(seconds=DEPENDENCIES_SECONDS_DELAY)
+            ) if dependency_times else right_now()
+
+            if not new_job._start_at:
+                new_job._start_at = max_dependency_start
+            elif new_job._start_at < max_dependency_start:
+                new_job._start_at = max_dependency_start
+
+            new_job._status = JOB_STATUSES.DELAYED
             self._create_temp_job_file(new_job)
-            self.pending_jobs.insert(0, new_job)
+            self.delayed_jobs.insert(0, new_job)
             lock.release()
             log.warning(
-                'Task will be executed after its dependencies done.'
+                f'Task {new_job} will be executed after its dependencies done.'
             )
+            log.warning(f'{new_job._start_at}')
         elif new_job._start_at and right_now() < new_job._start_at:
             lock.acquire()
-            new_job._status = 'DELAYED'
+            new_job._status = JOB_STATUSES.DELAYED
             self._create_temp_job_file(new_job)
             self.delayed_jobs.insert(0, new_job)
             lock.release()
@@ -121,26 +133,36 @@ class Scheduler:
         while True:
             if emergency_event.is_set():
                 sys.exit(0)
-            # print('delayed', delayed_jobs)
             sleep(0.5)
             if delayed_jobs:
                 new_task_is_ready: bool = False
                 for i, job in enumerate(delayed_jobs):
                     if right_now() > job._start_at:
+                        if job._dependencies:
+                            for dependency in job._dependencies:
+                                if (
+                                    dependency._status
+                                    != JOB_STATUSES.COMPLETED
+                                ):
+                                    break
                         new_task_is_ready = True
                         break
                 if new_task_is_ready:
                     lock.acquire()
-                    next_job = delayed_jobs.pop(i)
-
-                    # проверяем зависимости
-
+                    next_job = delayed_jobs[i]
                     lock.release()
                     next_job._status = JOB_STATUSES.READY_TO_RUN
                     result_of_execution = str(self._execute().send(next_job))
+                    lock.acquire()
+
+                    if next_job._status in (
+                        JOB_STATUSES.COMPLETED,
+                        JOB_STATUSES.FAILED
+                    ):
+                        delayed_jobs.pop(i)
                     self._change_temp_file(
                         f'{self.__folder_path}task_'
-                        f'{job._id_inside_scheduler}.json',
+                        f'{next_job._id_inside_scheduler}.json',
                         {
                             '_status': str(next_job._status).removeprefix(
                                 'JOB_STATUSES.'
@@ -148,6 +170,7 @@ class Scheduler:
                             '_result': result_of_execution,
                         }
                     )
+                    lock.release()
 
     def _check_pending_jobs(self, running_jobs, pending_jobs):
         """
@@ -161,30 +184,6 @@ class Scheduler:
             if len(running_jobs) > 0:
                 lock.acquire()
                 next_task: Job = running_jobs[-1]
-
-                if task_dependencies := next_task._dependencies:
-                    for dependency_job in task_dependencies:
-                        if dependency_job._status != JOB_STATUSES.COMPLETED:
-                            next_task = running_jobs.pop()
-                            next_task._start_at = (
-                                datetime.datetime.now()
-                                + datetime.timedelta(
-                                    seconds=DEPENDENCIES_SECONDS_DELAY
-                                )
-                            )
-                            next_task._status = JOB_STATUSES.DELAYED
-                            self._change_temp_file(
-                                f'{self.__folder_path}task_'
-                                f'{dependency_job._id_inside_scheduler}.json',
-                                {
-                                    '_status': str(
-                                        dependency_job._status).removeprefix(
-                                        'JOB_STATUSES.'
-                                        ),
-                                    '_result': '',
-                                }
-                            )
-                            self.delayed_jobs.insert(0, next_task)
                 lock.release()
 
                 json_temp_file: str = self._create_temp_job_file(next_task)
@@ -259,11 +258,13 @@ class Scheduler:
         Запускает службы, отслеживающие очереди задач.
         """
         checking_delayed_process = multiprocessing.Process(
+            name='DELAY_JOBS_PROCESS',
             target=self._check_delayed_jobs,
             args=[self.delayed_jobs],
             daemon=True,
         )
         checking_pending_process = multiprocessing.Process(
+            name='PENDING_JOBS_PROCESS',
             target=self._check_pending_jobs,
             args=[self.running_jobs, self.pending_jobs],
             daemon=True,
