@@ -1,7 +1,6 @@
 import datetime
 import json
 import os
-import shutil
 import urllib.request
 from functools import wraps
 from http import HTTPStatus
@@ -69,8 +68,9 @@ def function_with_error():
     """
     Функция для представления обработки количества попыток запуска задачи.
     """
-    raise Exception('This was requested error just to show the function works.')
-    
+    raise Exception(
+        'This was requested error just to show the function works.'
+    )
 
 def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
     """
@@ -140,7 +140,9 @@ class ReadWriteFile:
         """
         try:
             with open(filename, 'r') as file:
-                return file.read()
+                text: str = file.read()
+                print(text)  # NOTE: побочный эффект выполнения функции.
+                return text
         except FileNotFoundError:
             return 'File "{}" not found.'.format(filename)
 

@@ -6,8 +6,8 @@ from time import sleep
 
 from job import Job
 from scheduler import Scheduler, StopSignal, right_now
-from utils import (FileSystemWork, function_with_error, get_world_time,
-                   get_world_time_slowly, ReadWriteFile)
+from utils import (FileSystemWork, ReadWriteFile, function_with_error,
+                   get_world_time, get_world_time_slowly)
 
 
 def user_tasks_for_scheduler(
@@ -18,128 +18,144 @@ def user_tasks_for_scheduler(
     Создание задач для представления работы планировщика.
     """
 
-    # Job1 = Job(
-    #     'TASK1 - Обычная задача',
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/samara'},
-    # )
-    # Job2 = Job(
-    #     'TASK2 - Запланированная задача - позже на 15 сек.',
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/moscow'},
-    #     start_at=right_now() + datetime.timedelta(seconds=15)
-    # )
-    # Job3 = Job(
-    #     'TASK3 - Запланированная задача - позже на 12 сек.',
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/london'},
-    #     start_at=right_now() + datetime.timedelta(seconds=12)
-    # )
-    # Job4 = Job(
-    #     'TASK4 - Время попыток уменьшено до 0, с целью '
-    #     'показать обработку ошибок',
-    #     function_with_error,
-    #     max_tries=1,
-    # )
-    # Job5 = Job(
-    #     'TASK5 - Функция для показателя работы таймаута, '
-    #     'переданного пользователем',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/rome'},
-    #     max_working_time=2,
-    # )
-    # Job6 = Job(
-    #     'TASK5 - Функция для показателя работы таймаута, '
-    #     'переданного пользователем',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/rome'},
-    #     max_working_time=2,
-    # )
-    # Job7 = Job(
-    #     'TASK5 - Функция для показателя работы таймаута, '
-    #     'переданного пользователем',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/rome'},
-    #     max_working_time=2,
-    # )
-    # Job8 = Job(
-    #     'TASK6 - Функция1 для проверки работы отложенных '
-    #     'задач и переполнения пула.',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/warsaw'},
-    # )
-    # Job6 = Job(
-    #     'TASK7 - Функция2 для проверки работы отложенных '
-    #     'задач и переполнения пула.',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/dublin'},
-    # )
-    # Job7 = Job(
-    #     'TASK8 - Функция3 для проверки работы отложенных '
-    #     'задач и переполнения пула.',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/berlin'},
-    # )
-    # Job9 = Job(
-    #     'TASK9 - Функция4 для проверки работы отложенных '
-    #     'задач и переполнения пула.',
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/brussels'},
-    # )
-    # Job10 = Job(
-    #     'TASK10 - Функция1 для проверки работы планировщика '
-    #     'с зависимостями.',
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/amsterdam'},
-    #     start_at=right_now() + datetime.timedelta(seconds=10),
-    # )
+    Job1 = Job(
+        'TASK1 - Обычная задача',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/samara'},
+    )
+    Job2 = Job(
+        'TASK2 - Запланированная задача - позже на 15 сек.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/moscow'},
+        start_at=right_now() + datetime.timedelta(seconds=15)
+    )
+    Job3 = Job(
+        'TASK3 - Запланированная задача - позже на 12 сек.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/london'},
+        start_at=right_now() + datetime.timedelta(seconds=12)
+    )
+    Job4 = Job(
+        'TASK4 - Время попыток уменьшено до 0, с целью '
+        'показать обработку ошибок',
+        function_with_error,
+        max_tries=1,
+    )
+    Job5 = Job(
+        'TASK5 - Функция для показателя работы таймаута, '
+        'переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+    Job6 = Job(
+        'TASK5 - Функция для показателя работы таймаута, '
+        'переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+    Job7 = Job(
+        'TASK5 - Функция для показателя работы таймаута, '
+        'переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+    Job8 = Job(
+        'TASK6 - Функция1 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/warsaw'},
+    )
+    Job6 = Job(
+        'TASK7 - Функция2 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/dublin'},
+    )
+    Job7 = Job(
+        'TASK8 - Функция3 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/berlin'},
+    )
+    Job9 = Job(
+        'TASK9 - Функция4 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/brussels'},
+    )
+    Job10 = Job(
+        'TASK10 - Функция1 для проверки работы планировщика '
+        'с зависимостями.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/amsterdam'},
+        start_at=right_now() + datetime.timedelta(seconds=10),
+    )
     Job11 = Job(
         'TASK11 - Функция2 для проверки работы планировщика '
         'с зависимостями.',
         FileSystemWork.create_object,
         kwargs={'path': './new_path/', 'is_folder': True},
     )
-    # Job12 = Job(
-    #     'TASK12 - Функция3 для проверки работы планировщика '
-    #     'с зависимостями.',
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/athens'},
-    #     dependencies=[Job9, Job10],
-    # )
+    Job12 = Job(
+        'TASK12 - Функция3 для проверки работы планировщика '
+        'с зависимостями.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/athens'},
+        dependencies=[Job9, Job10],
+    )
     Job13 = Job(
         'TASK13 - Функция4 для проверки работы планировщика '
         'с зависимостями.',
-        ReadWriteFile.create_object,
-        kwargs={'path': './new_path/new-file.txt', 'is_folder': False},
+        ReadWriteFile.rewrite_file,
+        kwargs={
+            'filename': './new_path/new-file.txt',
+            'text': (
+                '42 is the answer to the ultimate '
+                'question of life, the universe, and everything.'
+            ),
+        },
         dependencies=[Job11],
+    )
+    Job14 = Job(
+        'TASK14 - Функция5 для проверки работы планировщика '
+        'с зависимостями.',
+        ReadWriteFile.read_from_file,
+        kwargs={
+            'filename': './new_path/new-file.txt',
+        },
+        dependencies=[Job13],
     )
     stop_signal = StopSignal('STOP', scheduler_process)
 
     for job in (
-        # Job1,
-        # Job2,
-        # Job3,
-        # Job4,
-        # Job5,
-        # Job6,
-        # Job7,
-        # Job8,
-        # Job9,
-        # Job10,
+        Job1,
+        Job2,
+        Job3,
+        Job4,
+        Job5,
+        Job6,
+        Job7,
+        Job8,
+        Job9,
+        Job10,
         Job11,
-        # Job12,
+        Job12,
         Job13,
+        Job14,
     ):
         sleep(3)
         mng.scheduler.schedule().send(job)
-    sleep(15)
-    mng.scheduler.schedule().send(stop_signal)        
+    sleep(5)
+    mng.scheduler.schedule().send(stop_signal)
 
-#####################################################
-##### Для запуска планировщика: python3 main.py #####
-##### Протестировано на python 3.10.11          #####
-##### Использованы только встроенные библиотеки #####
-#####################################################
+
+# Для запуска планировщика: python3 main.py ##################################
+# Протестировано на python 3.10.11          ##################################
+# Использованы только встроенные библиотеки ##################################
+
 
 if __name__ == '__main__':
     # NOTE: удаление временной директории для тестирования планировщика.

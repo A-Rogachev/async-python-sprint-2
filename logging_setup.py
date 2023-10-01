@@ -1,6 +1,5 @@
 import logging
 
-
 SUCCESS = 25
 logging.addLevelName(SUCCESS, 'SUCCESS')
 
