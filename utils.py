@@ -112,6 +112,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         'time': user_datetime.time().strftime('%H:%M'),
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
+        'time_zone': user_timezone,
     }
     print(result)   # NOTE: побочный эффект выполнения функции.
     return result

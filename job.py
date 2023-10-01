@@ -14,12 +14,13 @@ class JOB_STATUSES(Enum):
     Возможные статусы задачи.
     """
 
-    CREATED = 'CREATED'
-    DELAYED = 'DELAYED'
-    IS_PENDED = 'IS_PENDED'
-    READY_TO_RUN = 'READY_TO_RUN'
-    COMPLETED = 'COMPLETED'
-    FAILED = 'FAILED'
+    CREATED: str = 'CREATED'
+    DELAYED: str = 'DELAYED'
+    IS_PENDED: str = 'IS_PENDED'
+    READY_TO_RUN: str = 'READY_TO_RUN'
+    COMPLETED: str = 'COMPLETED'
+    FAILED: str = 'FAILED'
+    DEPENDS_ON: str = 'DEPENDS_ON'
 
 
 class Job:
@@ -37,7 +38,7 @@ class Job:
         max_working_time: int | None = None,
         max_tries: int = 3,
         dependencies: list[str] | None = None,
-        job_status: str = 'CREATED'
+        job_status: str = JOB_STATUSES.CREATED
     ) -> None:
         """
         Инициализация объекта задачи, используемой в работе планировщика.
@@ -49,19 +50,19 @@ class Job:
         self._start_at = start_at or None
         self._max_working_time = max_working_time
         self._max_tries = max_tries
-
         self._dependencies = dependencies or []
         self._status = job_status
+        self._id_inside_scheduler = None
 
     def run(self):
         """
         Запуск задачи.
         """
         if self._max_working_time:
-            return self.execute_with_timeout(self._max_working_time)
+            return self._execute_with_timeout(self._max_working_time)
         return self._task(*self._args, **self._kwargs)
 
-    def execute_with_timeout(self, timeout: int) -> Any:
+    def _execute_with_timeout(self, timeout: int) -> Any:
         """
         Выполнение задачи с учетом заданного максимального
         времени выполнения.
@@ -82,7 +83,7 @@ class Job:
         """
         Строковое представление задачи.
         """
-        return f'<Job {id(self)}>'
+        return f'<Job {self._name[:7]}>'
 
     def __repr__(self) -> str:
         """
