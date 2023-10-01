@@ -1,73 +1,169 @@
+import datetime
 import multiprocessing
-import random
+import os
+import shutil
 from time import sleep
 
 from job import Job
-from scheduler import Scheduler, StopSignal
-from utils import get_world_time, get_world_time_slowly
+from scheduler import Scheduler, StopSignal, right_now
+from utils import (FileSystemWork, ReadWriteFile, function_with_error,
+                   get_world_time, get_world_time_slowly)
 
 
-def create_tasks_for_scheduler(
+def user_tasks_for_scheduler(
     mng: multiprocessing.Manager,
     scheduler_process: multiprocessing.Process
 ) -> None:
     """
-    Здесь создаем задачи с рандомным временем.
+    Создание задач для представления работы планировщика.
     """
-    
-    # Job1 = Job(
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/samara'},
-    # )
-    # # Функция с замедлением, в случае увеличения параметра max_working_time
-    # # до 3 секунд, не выполняется (TimeoutError)
-    # Job2 = Job(
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/moscow'},
-    #     max_working_time=1,
-    # )
-    # # Функция с количеством попыток=0, используется чтобы показать,
-    # # что функции у которых не осталось попыток на выполнение, завершаются.
-    # Job3 = Job(
-    #     get_world_time,
-    #     kwargs={'user_timezone': 'europe/saratov'},
-    #     max_tries=0,
-    # )
-    # # Стоп-сигнал для планировщика (пример аварийного завершения работы).
-    # Job4 = Job(
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/london'},
-    #     # start_at='29.09.2023 02:28',
-    # )
-    # Job5 = Job(
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/moscow'},
-    #     # start_at='29.09.2023 02:28',
-    # )
-    # Job6 = Job(
-    #     get_world_time_slowly,
-    #     kwargs={'user_timezone': 'europe/new_york'},
-    #     # start_at='29.09.2023 02:28',
-    # )
-    # Job7 = StopSignal('STOP', scheduler_process)
 
-    # for job in (Job1, Job2, Job3, Job4, Job5, Job6, Job7):
-    #     mng.scheduler.schedule().send(job)
-    #     if isinstance(job, StopSignal):
-    #         sleep(6)
-    #     else:
-    #         sleep(random.choice([1, 2, 3, 0.5, 2.5, 1.5]))
+    Job1 = Job(
+        'TASK1 - Обычная задача',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/samara'},
+    )
+    Job2 = Job(
+        'TASK2 - Запланированная задача - позже на 15 сек.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/moscow'},
+        start_at=right_now() + datetime.timedelta(seconds=15)
+    )
+    Job3 = Job(
+        'TASK3 - Запланированная задача - позже на 12 сек.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/london'},
+        start_at=right_now() + datetime.timedelta(seconds=12)
+    )
+    Job4 = Job(
+        'TASK4 - Время попыток уменьшено до 0, с целью '
+        'показать обработку ошибок',
+        function_with_error,
+        max_tries=1,
+    )
+    Job5 = Job(
+        'TASK5 - Функция для показателя работы таймаута, '
+        'переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+    Job6 = Job(
+        'TASK5 - Функция для показателя работы таймаута, '
+        'переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+    Job7 = Job(
+        'TASK5 - Функция для показателя работы таймаута, '
+        'переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+    Job8 = Job(
+        'TASK6 - Функция1 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/warsaw'},
+    )
+    Job6 = Job(
+        'TASK7 - Функция2 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/dublin'},
+    )
+    Job7 = Job(
+        'TASK8 - Функция3 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/berlin'},
+    )
+    Job9 = Job(
+        'TASK9 - Функция4 для проверки работы отложенных '
+        'задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/brussels'},
+    )
+    Job10 = Job(
+        'TASK10 - Функция1 для проверки работы планировщика '
+        'с зависимостями.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/amsterdam'},
+        start_at=right_now() + datetime.timedelta(seconds=10),
+    )
+    Job11 = Job(
+        'TASK11 - Функция2 для проверки работы планировщика '
+        'с зависимостями.',
+        FileSystemWork.create_object,
+        kwargs={'path': './new_path/', 'is_folder': True},
+    )
+    Job12 = Job(
+        'TASK12 - Функция3 для проверки работы планировщика '
+        'с зависимостями.',
+        get_world_time,
+        kwargs={'user_timezone': 'europe/athens'},
+        dependencies=[Job9, Job10],
+    )
+    Job13 = Job(
+        'TASK13 - Функция4 для проверки работы планировщика '
+        'с зависимостями.',
+        ReadWriteFile.rewrite_file,
+        kwargs={
+            'filename': './new_path/new-file.txt',
+            'text': (
+                '42 is the answer to the ultimate '
+                'question of life, the universe, and everything.'
+            ),
+        },
+        dependencies=[Job11],
+    )
+    Job14 = Job(
+        'TASK14 - Функция5 для проверки работы планировщика '
+        'с зависимостями.',
+        ReadWriteFile.read_from_file,
+        kwargs={
+            'filename': './new_path/new-file.txt',
+        },
+        dependencies=[Job13],
+    )
+    stop_signal = StopSignal('STOP', scheduler_process)
+
+    for job in (
+        Job1,
+        Job2,
+        Job3,
+        Job4,
+        Job5,
+        Job6,
+        Job7,
+        Job8,
+        Job9,
+        Job10,
+        Job11,
+        Job12,
+        Job13,
+        Job14,
+    ):
+        sleep(3)
+        mng.scheduler.schedule().send(job)
+    sleep(5)
+    mng.scheduler.schedule().send(stop_signal)
+
+
+# Для запуска планировщика: python3 main.py ##################################
+# Протестировано на python 3.10.11          ##################################
+# Использованы только встроенные библиотеки ##################################
 
 
 if __name__ == '__main__':
+    # NOTE: удаление временной директории для тестирования планировщика.
+    if os.path.exists('/new_path/'):
+        shutil.rmtree('/new_path/')
 
-    #####################################################
-    ##### Для запуска планировщика: python3 main.py #####
-    ##### Протестировано на python 3.10.11          #####
-    ##### Использованы только встроенные библиотеки #####
-    #####################################################
+    task_scheduler = Scheduler(pool_size=3, working_time=120)
 
-    task_scheduler = Scheduler(pool_size=3, working_time=20)
     mng = multiprocessing.Manager()
     mng.scheduler: Scheduler = task_scheduler
 
@@ -76,13 +172,11 @@ if __name__ == '__main__':
         target=task_scheduler.run,
     )
     process_task_creator = multiprocessing.Process(
-        name='<TASKS_PROCESS>',
-        target=create_tasks_for_scheduler,
+        name='<USER_PROCESS>',
+        target=user_tasks_for_scheduler,
         args=[mng, process_scheduler],
     )
     process_scheduler.start()
     process_task_creator.start()
     process_scheduler.join()
     process_task_creator.join()
-
-# Стоп-сигнал вручную останавливает планировщик.
