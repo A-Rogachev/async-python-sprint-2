@@ -1,11 +1,25 @@
 
 import datetime
 import multiprocessing
+from enum import Enum
 from typing import Any, Callable
 
 from logging_setup import setup_logger
 
 log = setup_logger(__name__)
+
+
+class JOB_STATUSES(Enum):
+    """
+    Возможные статусы задачи.
+    """
+
+    CREATED = 'CREATED'
+    DELAYED = 'DELAYED'
+    IS_PENDED = 'IS_PENDED'
+    READY_TO_RUN = 'READY_TO_RUN'
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
 
 
 class Job:
@@ -35,7 +49,7 @@ class Job:
         self._start_at = start_at or None
         self._max_working_time = max_working_time
         self._max_tries = max_tries
-        
+
         self._dependencies = dependencies or []
         self._status = job_status
 
@@ -69,7 +83,7 @@ class Job:
         Строковое представление задачи.
         """
         return f'<Job {id(self)}>'
-    
+
     def __repr__(self) -> str:
         """
         Строковое формальное представление задачи.

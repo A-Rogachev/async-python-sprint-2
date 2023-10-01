@@ -2,14 +2,13 @@ import datetime
 import logging
 import multiprocessing
 import os
-import queue
 import shutil
 import sys
 from threading import Lock
 from time import sleep
 from typing import NamedTuple
 
-from job import Job
+from job import Job, JOB_STATUSES
 from logging_setup import setup_logger
 from utils import coroutine
 
@@ -20,6 +19,7 @@ right_now = datetime.datetime.now
 lock = Lock()
 
 emergency_event = multiprocessing.Event()
+
 
 class StopSignal(NamedTuple):
     """
@@ -67,20 +67,39 @@ class Scheduler:
         if isinstance(new_job, StopSignal):
             self._emergency_exit(new_job.process)
 
-        if new_job._start_at and right_now() < new_job._start_at:
-            lock.acquire()           
-            self.delayed_jobs.insert(0, new_job)
-            lock.release()
-            log.warning(
-                f'Task id{id(new_job)} will be executed at '
-                f'{new_job._start_at.strftime("%H:%M:%S")}'
-            )
-        else:
-            log.info(f'Task id{id(new_job)} will be executed right now.')
-        yield self.execute().send(new_job)
+        match new_job._status:
+            case JOB_STATUSES.READY_TO_RUN:
+                yield self._execute().send(new_job)
+            case _:
+                if new_job._start_at and right_now() < new_job._start_at:
+                    lock.acquire()
+                    new_job._status = 'DELAYED'
+                    self.delayed_jobs.insert(0, new_job)
+                    lock.release()
+                    log.warning(
+                        f'Task id{id(new_job)} will be executed at '
+                        f'{new_job._start_at.strftime("%H:%M:%S")}'
+                    )
+                else:
+                    lock.acquire()
+                    if len(self.running_jobs) + 1 > self.pool_size:
+                        log.warning(
+                            'Task pool is full. Job would be '
+                            'executed a bit later.'
+                        )
+                        new_job._status = JOB_STATUSES.IS_PENDED
+                        self.pending_jobs.insert(0, new_job)
+                    else:
+                        log.info(
+                            f'Task id{id(new_job)} will be executed right now.'
+                        )
+                        new_job._status = JOB_STATUSES.READY_TO_RUN
+                        self.running_jobs.insert(0, new_job)
+                    lock.release()
+                yield None
 
     @coroutine
-    def execute(self):
+    def _execute(self):
         """
         Выполнение задачи.
         """
@@ -93,34 +112,39 @@ class Scheduler:
                 log.error(f'Task {current_task} - failed (timeout error).')
                 break
             except Exception:
-                log.error(f'Task {current_task} - try {current_try} failed (available tries: {current_task._max_tries}).')
+                log.error(
+                    f'Task {current_task} - try {current_try} failed '
+                    f'(available tries: {current_task._max_tries}).'
+                )
                 if current_try + 1 > current_task._max_tries:
                     break
             else:
                 log.success(f'Task finished: {current_task}')
+                current_task._status = JOB_STATUSES.COMPLETED
                 yield result
+        current_task._status = JOB_STATUSES.FAILED
         yield None
 
     def _check_delayed_jobs(self, delayed_jobs):
-            """
-            Проверка задач с отложенным запуском (с указанным временем запуска).
-            """
-            while True:
-                if emergency_event.is_set():
-                    sys.exit(0)
-                sleep(0.5)
-                if delayed_jobs:
-                    new_task_is_ready: bool = False
-                    for i, job in enumerate(delayed_jobs):
-                        if right_now() > job._start_at:
-                            new_task_is_ready = True
-                            break
-                    if new_task_is_ready:
-                        lock.acquire()
-                        next_job = delayed_jobs.pop(i)
-                        lock.release()
-                        next_job._start_at = None
-                        self.schedule().send(next_job)
+        """
+        Проверка задач с отложенным запуском (с указанным временем).
+        """
+        while True:
+            if emergency_event.is_set():
+                sys.exit(0)
+            sleep(0.5)
+            if delayed_jobs:
+                new_task_is_ready: bool = False
+                for i, job in enumerate(delayed_jobs):
+                    if right_now() > job._start_at:
+                        new_task_is_ready = True
+                        break
+                if new_task_is_ready:
+                    lock.acquire()
+                    next_job = delayed_jobs.pop(i)
+                    lock.release()
+                    next_job._start_at = None
+                    self.schedule().send(next_job)
 
     def _check_pending_jobs(self, running_jobs, pending_jobs):
         """
@@ -200,9 +224,3 @@ class Scheduler:
 #                 json.dump(data, f)
 #         except Exception:
 #             log.warning('scheduler inner error')
-
-
-
-
-
-
