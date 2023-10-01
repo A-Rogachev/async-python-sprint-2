@@ -72,6 +72,7 @@ def function_with_error():
         'This was requested error just to show the function works.'
     )
 
+
 def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
     """
     Использует сервис worldtimeapi.org для получения информации о
