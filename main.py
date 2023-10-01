@@ -16,39 +16,80 @@ def user_tasks_for_scheduler(
     """
 
     Job1 = Job(
-        'Обычная задача',
+        'TASK1 - Обычная задача',
         get_world_time,
         kwargs={'user_timezone': 'europe/samara'},
     )
     Job2 = Job(
-        'Запланированная задача - позже на 15 сек.',
+        'TASK2 - Запланированная задача - позже на 15 сек.',
         get_world_time,
         kwargs={'user_timezone': 'europe/moscow'},
         start_at=right_now() + datetime.timedelta(seconds=15)
     )
     Job3 = Job(
-        'Запланированная задача - позже на 12 сек.',
+        'TASK3 - Запланированная задача - позже на 12 сек.',
         get_world_time,
         kwargs={'user_timezone': 'europe/london'},
         start_at=right_now() + datetime.timedelta(seconds=12)
     )
     Job4 = Job(
-        'Время попыток уменьшено до 0, с целью показать обработку ошибок',
+        'TASK4 - Время попыток уменьшено до 0, с целью показать обработку ошибок',
         function_with_error,
         max_tries=1,
     )
     Job5 = Job(
-        'Функция для показателя работы таймаута, переданного пользователем',
+        'TASK5 - Функция для показателя работы таймаута, переданного пользователем',
         get_world_time_slowly,
         kwargs={'user_timezone': 'europe/rome'},
         max_working_time=2,
     )
     stop_signal = StopSignal('STOP', scheduler_process)
 
-    for job in (Job1, Job2, Job3, Job4, Job5):
+
+    Job6 = Job(
+        'TASK5 - Функция для показателя работы таймаута, переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+
+    Job7 = Job(
+        'TASK5 - Функция для показателя работы таймаута, переданного пользователем',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/rome'},
+        max_working_time=2,
+    )
+
+    Job8 = Job(
+        'TASK6 - Функция1 для проверки работы отложенных задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/warsaw'},
+    )
+    Job6 = Job(
+        'TASK7 - Функция2 для проверки работы отложенных задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/dublin'},
+    )
+
+    Job7 = Job(
+        'TASK8 - Функция3 для проверки работы отложенных задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/berlin'},
+    )
+
+    Job9 = Job(
+        'TASK9 - Функция4 для проверки работы отложенных задач и переполнения пула.',
+        get_world_time_slowly,
+        kwargs={'user_timezone': 'europe/brussels'},
+    )
+
+    # for job in (Job1, Job2, Job3, Job4, Job5):
+    # for job in (Job5, ):
+    # for job in (Job6, Job7, Job8, Job9):
+    for job in (Job1, Job3, Job4):
         sleep(3)
         mng.scheduler.schedule().send(job)
-    sleep(5)
+    sleep(10)
     mng.scheduler.schedule().send(stop_signal)        
 
 #####################################################

@@ -1,0 +1,13 @@
+{
+    "_args": "[]",
+    "_dependencies": "[]",
+    "_id_inside_scheduler": "2",
+    "_kwargs": "{}",
+    "_max_tries": "1",
+    "_max_working_time": "None",
+    "_name": "TASK4 - \u0412\u0440\u0435\u043c\u044f \u043f\u043e\u043f\u044b\u0442\u043e\u043a \u0443\u043c\u0435\u043d\u044c\u0448\u0435\u043d\u043e \u0434\u043e 0, \u0441 \u0446\u0435\u043b\u044c\u044e \u043f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0443 \u043e\u0448\u0438\u0431\u043e\u043a",
+    "_result": "None",
+    "_start_at": "None",
+    "_status": "FAILED",
+    "_task": "<function function_with_error at 0x7fe520d29480>"
+}
