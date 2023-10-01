@@ -59,7 +59,7 @@ def user_tasks_for_scheduler(
 
 
 if __name__ == '__main__':
-    task_scheduler = Scheduler(pool_size=3, working_time=40)
+    task_scheduler = Scheduler(pool_size=3, working_time=35)
 
     mng = multiprocessing.Manager()
     mng.scheduler: Scheduler = task_scheduler

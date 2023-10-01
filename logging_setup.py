@@ -42,16 +42,6 @@ class ColoredFormatter(logging.Formatter):
                 record.msg = f"{Color.GREEN}{record.msg}{Color.RESET}"
         return super().format(record)
 
-        # if record.levelno == logging.INFO:
-        #     record.msg = f"{Color.GREEN}{record.msg}{Color.RESET}"
-        # elif record.levelno == logging.WARNING:
-        #     record.msg = f"{Color.YELLOW}{record.msg}{Color.RESET}"
-        # elif record.levelno == logging.ERROR:
-        #     record.msg = f"{Color.RED}{record.msg}{Color.RESET}"
-        # elif record.levelno == logging.SUCCESS:
-        #     record.msg = f"{Color.LIGHT_CYAN}{record.msg}{Color.RESET}"
-        # return super().format(record)
-
 
 def setup_logger(name='root', level=logging.INFO) -> logging.Logger:
     """

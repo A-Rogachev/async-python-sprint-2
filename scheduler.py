@@ -1,4 +1,5 @@
 import datetime
+import logging
 import multiprocessing
 import os
 import queue
@@ -8,14 +9,17 @@ from threading import Lock
 from time import sleep
 from typing import NamedTuple
 
+from job import Job
 from logging_setup import setup_logger
 from utils import coroutine
 
 # DEPENDENCIES_SECONDS_DELAY: int =  10
 
-log = setup_logger('schedule')
+log: logging.Logger = setup_logger('schedule')
 right_now = datetime.datetime.now
 lock = Lock()
+
+emergency_event = multiprocessing.Event()
 
 class StopSignal(NamedTuple):
     """
@@ -32,21 +36,18 @@ class Scheduler:
     """
     def __init__(self, pool_size=10, working_time=60):
         self.pool_size: int = pool_size
-        self.running_jobs = queue.Queue()
-        self.pending_jobs = queue.Queue()
+        self.running_jobs = multiprocessing.Manager().list()
+        self.pending_jobs = multiprocessing.Manager().list()
         self.delayed_jobs = multiprocessing.Manager().list()
         self.working_time: int = working_time
         self.__folder_path: str = './.scheduler_temp_folder/'
-
-        self._create_directory_for_temp_files()
-        self.checking_process = multiprocessing.Process(target=self.checking_new_jobs, args=[self.delayed_jobs], daemon=True)
-        self.checking_process.start()
-        
 
     def run(self):
         """
         Запуск планировщика задач.
         """
+        self._create_directory_for_temp_files()
+        self._run_daemon_services()
         while True:
             log.info('waiting for task')
             sleep(1)
@@ -55,79 +56,106 @@ class Scheduler:
                 break
         self._stop()
 
-    def checking_new_jobs(self, delayed_jobs):
-        """
-        Проверка задач с отложенным запуском.
-        """
-        while True:
-            sleep(1)
-            if delayed_jobs:
-                new_task_is_ready: bool = False
-                for i, job in enumerate(delayed_jobs):
-                    if right_now() > job._start_at:
-                        new_task_is_ready = True
-                        break
-                if new_task_is_ready:
-                    next_job = delayed_jobs.pop(i)
-                    next_job._start_at = None
-                    self.schedule().send(next_job)
-
     @coroutine
     def schedule(self):
         """
         Метод добавляет в список задач новую, если пул переполнен,
         задача попадает в список отложенных.
         """
-        new_job = yield
-        # В случае если получаем стоп-сигнал, завершаем работу планировщика.
+        new_job: Job | StopSignal = yield
+
         if isinstance(new_job, StopSignal):
             self._emergency_exit(new_job.process)
 
-        # В случае если новая задача имеет конкретное время выполнения.
         if new_job._start_at and right_now() < new_job._start_at:
             lock.acquire()           
             self.delayed_jobs.insert(0, new_job)
             lock.release()
-            log.warning(f'Task id{id(new_job)} will be executed at {new_job._start_at}.')
+            log.warning(
+                f'Task id{id(new_job)} will be executed at '
+                f'{new_job._start_at.strftime("%H:%M:%S")}'
+            )
         else:
-        # Случай с обычной задачей.
             log.info(f'Task id{id(new_job)} will be executed right now.')
+        yield self.execute().send(new_job)
 
-            current_try: int = 1
-            while current_try <= new_job._max_tries:
-                try:
-                    result = new_job.run()
-                except TimeoutError:
-                    log.error(f'Task {new_job} - failed (timeout error).')
+    @coroutine
+    def execute(self):
+        """
+        Выполнение задачи.
+        """
+        current_task: Job | StopSignal = yield
+        current_try: int = 1
+        while current_try <= current_task._max_tries:
+            try:
+                result = current_task.run()
+            except TimeoutError:
+                log.error(f'Task {current_task} - failed (timeout error).')
+                break
+            except Exception:
+                log.error(f'Task {current_task} - try {current_try} failed (available tries: {current_task._max_tries}).')
+                if current_try + 1 > current_task._max_tries:
                     break
-                except Exception:
-                    log.error(f'Task {new_job} - try {current_try} failed (available tries: {new_job._max_tries}).')
-                    if current_try + 1 > new_job._max_tries:
-                        break
-                else:
-                    log.success(f'Task finished: {new_job}')
-                    yield result
+            else:
+                log.success(f'Task finished: {current_task}')
+                yield result
         yield None
 
-            # job_file = self.create_file_for_the_job(new_job)
-            # self.put_job_in_the_queue(new_job, job_file)
-            # if new_job:
-            #     executing = self.get_current_executing_job()
-            #     self.change_job_status(executing.file, 'RUNNING')
-            #     
-            #     self.change_job_status(executing.file, 'FAILED')
-            #     log.error('task failed: {}'.format(executing.job))
-            #     yield None
+    def _check_delayed_jobs(self, delayed_jobs):
+            """
+            Проверка задач с отложенным запуском (с указанным временем запуска).
+            """
+            while True:
+                if emergency_event.is_set():
+                    sys.exit(0)
+                sleep(0.5)
+                if delayed_jobs:
+                    new_task_is_ready: bool = False
+                    for i, job in enumerate(delayed_jobs):
+                        if right_now() > job._start_at:
+                            new_task_is_ready = True
+                            break
+                    if new_task_is_ready:
+                        lock.acquire()
+                        next_job = delayed_jobs.pop(i)
+                        lock.release()
+                        next_job._start_at = None
+                        self.schedule().send(next_job)
+
+    def _check_pending_jobs(self, running_jobs, pending_jobs):
+        """
+        Проверка очереди выполняемых задач.
+        """
+        while True:
+            sleep(0.5)
+            print(running_jobs, pending_jobs)
 
 ###############################################################################
-    def _create_directory_for_temp_files(self):
+    def _create_directory_for_temp_files(self) -> None:
         """
         Создает директорию для хранения файлов с информацией о задачах.
         """
         if os.path.exists(self.__folder_path):
             shutil.rmtree(self.__folder_path)
         os.mkdir(self.__folder_path)
-        
+
+    def _run_daemon_services(self) -> None:
+        """
+        Запускает службы, отслеживающие очереди задач.
+        """
+        checking_delayed_process = multiprocessing.Process(
+            target=self._check_delayed_jobs,
+            args=[self.delayed_jobs],
+            daemon=True,
+        )
+        checking_pending_process = multiprocessing.Process(
+            target=self._check_pending_jobs,
+            args=[self.pending_jobs, self.pending_jobs],
+            daemon=True,
+        )
+        checking_delayed_process.start()
+        checking_pending_process.start()
+
     def _stop(self):
         """
         Завершение работы планировщика.
@@ -141,6 +169,7 @@ class Scheduler:
         """
         Аварийное завершение работы планировщика.
         """
+        emergency_event.set()
         process.terminate()
         sleep(0.5)
         shutil.rmtree(self.__folder_path)
