@@ -1,15 +1,12 @@
+import datetime
 import json
 import os
-import shutil
 import urllib.request
-import datetime
 from functools import wraps
 from http import HTTPStatus
 from http.client import HTTPResponse
 from time import sleep
 from typing import Any, Callable
-
-# TODO: заменить return в случае ошибок на raise
 
 
 def coroutine(f: Callable) -> Callable:
@@ -61,10 +58,19 @@ def get_world_time(user_timezone: str) -> dict[str, Any] | None:
         'time': user_datetime.time().strftime('%H:%M'),
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
+        'time_zone': user_timezone,
     }
     print(result)   # NOTE: побочный эффект выполнения функции.
     return result
 
+
+def function_with_error():
+    """
+    Функция для представления обработки количества попыток запуска задачи.
+    """
+    raise Exception(
+        'This was requested error just to show the function works.'
+    )
 
 def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
     """
@@ -98,7 +104,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         '%Y-%m-%dT%H:%M:%S.%f%z',
     )
     ##########################################################################
-    sleep(3)
+    sleep(4)
     ##########################################################################
     result = {
         'ip address': data.get('client_ip'),
@@ -106,6 +112,7 @@ def get_world_time_slowly(user_timezone: str) -> dict[str, Any] | None:
         'time': user_datetime.time().strftime('%H:%M'),
         'utc_offset': data.get('utc_offset'),
         'utc_datetime': data.get('utc_datetime'),
+        'time_zone': user_timezone,
     }
     print(result)   # NOTE: побочный эффект выполнения функции.
     return result
@@ -133,39 +140,17 @@ class ReadWriteFile:
         """
         try:
             with open(filename, 'r') as file:
-                return file.read()
+                text: str = file.read()
+                print(text)  # NOTE: побочный эффект выполнения функции.
+                return text
         except FileNotFoundError:
             return 'File "{}" not found.'.format(filename)
-
-    @staticmethod
-    def add_to_file(filename: str, text: str) -> None:
-        """
-        Добавляет в конец файла переданную информацию.
-        В случае если файл не существует, создает его.
-        """
-        with open(filename, 'a') as file:
-            file.write(text)
-        return None
 
 
 class FileSystemWork:
     """
-    Методы для взаимодействия с файловой системой.
+    Метод для взаимодействия с файловой системой.
     """
-
-    @staticmethod
-    def remove_object(path: str) -> str | None:
-        """
-        Удаляет файл/директорию с заданным именем.
-        В случае если директория содержит поддиректории и файлы, удаляет и их.
-        """
-        if os.path.exists(path):
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.remove(path)
-            return None
-        return 'Object "{}" not found.'.format(path)
 
     @staticmethod
     def create_object(path: str, is_folder: bool) -> str | None:
@@ -183,24 +168,3 @@ class FileSystemWork:
             except OSError:
                 return 'Error creating file.'
         return None
-
-    @staticmethod
-    def rename_obj(path: str, new_name: str) -> str | None:
-        """
-        Переименовывает файл/директорию с заданным именем.
-        """
-        if os.path.exists(path):
-            os.rename(path, new_name)
-            return None
-        return 'Object "{}" not found.'.format(path)
-
-    # if not os.path.exists('test_directory'):
-    #     os.mkdir('test_directory')
-    # print(FileSystemWork.create_object('test_directory/newfile/234', False))
-
-    # ReadWriteFile.rewrite_file('test_directory/test.txt', '123\n456\n789')
-    # print(ReadWriteFile.read_from_file('test_directory/test.txt'))
-    # ReadWriteFile.rewrite_file('test_directory/test.txt', 'test')
-    # print(ReadWriteFile.read_from_file('test_directory/test.txt'))
-    # ReadWriteFile.add_to_file('test_directory/test2.txt', 'anothertest')
-    # print(ReadWriteFile.read_from_file('test_directory/test2.txt'))
