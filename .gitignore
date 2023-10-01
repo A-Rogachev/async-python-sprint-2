@@ -6,3 +6,5 @@ __pycache__/
 venv/
 .python-version
 test_directory/
+new_path/
+.scheduler_temp_folder
