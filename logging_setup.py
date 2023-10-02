@@ -4,14 +4,16 @@ SUCCESS = 25
 logging.addLevelName(SUCCESS, 'SUCCESS')
 
 
-def success(self, message, *args, **kws):
+class SchedulerLogger(logging.Logger):
     """
-    Вариант для логгера в случае успешного завершения операции.
+    Класс-логгер для планировщика задач.
     """
-    self._log(SUCCESS, message, args, **kws)
 
-
-logging.Logger.success = success
+    def success(self, message: str, *args, **kws) -> None:
+        """
+        Вариант для логгера в случае успешного завершения операции.
+        """
+        self._log(SUCCESS, message, args, **kws)
 
 
 class Color:
@@ -53,8 +55,7 @@ def setup_logger(name='root', level=logging.INFO) -> logging.Logger:
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         ),
     )
-
-    logger = logging.getLogger(name)
+    logger = SchedulerLogger(__name__)
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger

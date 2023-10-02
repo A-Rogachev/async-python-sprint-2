@@ -126,7 +126,10 @@ class Scheduler:
             lock.release()
         yield None
 
-    def _check_delayed_jobs(self, delayed_jobs):
+    def _check_delayed_jobs(
+        self,
+        delayed_jobs: multiprocessing.list[Job],
+    ) -> None:
         """
         Проверка задач с отложенным запуском (с указанным временем).
         """
@@ -149,9 +152,9 @@ class Scheduler:
                         break
                 if new_task_is_ready:
                     lock.acquire()
-                    next_job = delayed_jobs[i]
+                    next_job: Job = delayed_jobs[i]
                     lock.release()
-                    next_job._status = JOB_STATUSES.READY_TO_RUN
+                    next_job._status: JOB_STATUSES = JOB_STATUSES.READY_TO_RUN
                     result_of_execution = str(self._execute().send(next_job))
                     lock.acquire()
 
@@ -172,14 +175,17 @@ class Scheduler:
                     )
                     lock.release()
 
-    def _check_pending_jobs(self, running_jobs, pending_jobs):
+    def _check_pending_jobs(
+        self,
+        running_jobs: multiprocessing.list[Job],
+        pending_jobs: multiprocessing.list[Job],
+    ) -> None:
         """
         Проверка очереди выполняемых задач.
         """
         while True:
             if emergency_event.is_set():
                 sys.exit(0)
-            # print('running / pending', self.running_jobs, self.pending_jobs)
             sleep(0.5)
             if len(running_jobs) > 0:
                 lock.acquire()
@@ -291,7 +297,7 @@ class Scheduler:
         log.warning('Scheduler was stopped manually')
         sys.exit(0)
 
-    def _create_temp_job_file(self, job: Job) -> str:
+    def _create_temp_job_file(self, job: Job) -> str | None:
         """
         Создает временный файл с информацией о задаче.
         """
@@ -299,7 +305,7 @@ class Scheduler:
             new_json_file = {
                 key: str(value) for key, value in vars(job).items()
             }
-            new_json_file['_result'] = None
+            new_json_file['_result'] = ''
             file_name: str = (
                 f'{self.__folder_path}task_{job._id_inside_scheduler}.json'
             )
@@ -308,6 +314,7 @@ class Scheduler:
             return file_name
         except Exception:
             log.error('Error creating temp file')
+            return None
 
     def _change_temp_file(self, json_file: str, args=None) -> None:
         """
