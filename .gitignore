@@ -8,3 +8,4 @@ venv/
 test_directory/
 new_path/
 .scheduler_temp_folder
+copies/

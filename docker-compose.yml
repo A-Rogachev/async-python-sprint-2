@@ -1,0 +1,7 @@
+version: '3.3'
+
+services:
+  async_second_homework:
+    build: .
+    container_name: homework_rogachev
+    restart: always

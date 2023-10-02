@@ -13,13 +13,13 @@ class JOB_STATUSES(Enum):
     Возможные статусы задачи.
     """
 
-    CREATED: str = 'CREATED'
-    DELAYED: str = 'DELAYED'
-    IS_PENDED: str = 'IS_PENDED'
-    READY_TO_RUN: str = 'READY_TO_RUN'
-    COMPLETED: str = 'COMPLETED'
-    FAILED: str = 'FAILED'
-    DEPENDS_ON: str = 'DEPENDS_ON'
+    CREATED = 'CREATED'
+    DELAYED = 'DELAYED'
+    IS_PENDED = 'IS_PENDED'
+    READY_TO_RUN = 'READY_TO_RUN'
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
+    DEPENDS_ON = 'DEPENDS_ON'
 
 
 class Job:
@@ -37,7 +37,7 @@ class Job:
         max_working_time: int | None = None,
         max_tries: int = 3,
         dependencies: list[str] | None = None,
-        job_status: str = JOB_STATUSES.CREATED
+        job_status: JOB_STATUSES = JOB_STATUSES.CREATED
     ) -> None:
         """
         Инициализация объекта задачи, используемой в работе планировщика.

@@ -49,7 +49,7 @@ class Scheduler:
         self._create_directory_for_temp_files()
         self._run_daemon_services()
         while True:
-            log.info('waiting for task')
+            log.info('Scheduler is running and ready to get new tasks.')
             sleep(1)
             self.working_time -= 1
             if not self.working_time:
