@@ -1,5 +1,5 @@
 
-#### *<p align=center>Запуск проекта</p>
+#### <p align=center>Запуск проекта</p>
 
 
 ##### Для запуска необходим Docker (при разработке использован Docker Community Version 24.0.6, образ с Dockerhub: python:3.10.11-slim, встроенные библиотеки интерпретатора Python 3.10.11 (создание виртуального окружения в контейнере не требуется).
@@ -29,6 +29,13 @@ sudo docker exec -it homework_rogachev bash
 python main.py
 
 ```
+5. Выход из контейнера и его удаление.
+```
+exit
+sudo docker rm -f homework_rogachev
+
+```
+
 
 # использованы только встроенные библиотеки python версии #
 
